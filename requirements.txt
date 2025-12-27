@@ -1,0 +1,5 @@
+accelerate
+docling
+streamlit
+torch
+transformers
