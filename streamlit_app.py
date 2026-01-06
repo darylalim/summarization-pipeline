@@ -1,21 +1,24 @@
-import streamlit as st
+import json
+import os
 import tempfile
-import torch
-from docling.document_converter import DocumentConverter
+import time
 from pathlib import Path
+
+import streamlit as st
+import torch
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.utils.model_downloader import download_models
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-st.set_page_config(
-    page_title="Summarization Pipeline",
-    layout="centered"
-)
+# Docling models can be prefetched for offline use
+download_models()
 
-st.title("Summarization Pipeline")
-st.markdown("Summarize documents with Docling and an IBM Granite 4.0 language model.")
+artifacts_path = str(Path.home() / '.cache' / 'docling' / 'models')
 
-@st.cache_resource
 def get_device():
-    """Detect and return the best available device"""
+    """Automatically detect the best available device in order of priority: MPS, CUDA, CPU."""
     if torch.backends.mps.is_available():
         return "mps"
     elif torch.cuda.is_available():
@@ -24,115 +27,109 @@ def get_device():
         return "cpu"
 
 @st.cache_resource
-def load_model():
-    """Load the tokenizer and model"""
-    device = get_device()
+def load_model(device):
+    """Load model and tokenizer at application startup."""
     model_path = "ibm-granite/granite-4.0-h-tiny"
+    model = AutoModelForCausalLM.from_pretrained(model_path, device_map=device, dtype=torch.float16)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    return model, tokenizer
 
-    with st.spinner(f"Loading model on {device.upper()}..."):
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
-        model = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.float16)
-        model = model.to(device)
+def convert(source, doc_converter):
+    """Convert a source file to a Docling document and export to Markdown."""
+    result = doc_converter.convert(
+        source=source,
+        max_num_pages=100,
+        max_file_size=20971520
+    )
+    doc = result.document
+    doc_markdown = doc.export_to_markdown()
+    return doc_markdown
+
+def summarize(doc_markdown, model, tokenizer, device):
+    """Summarize the source text with a transformers model."""
+    prompt = f"""Summarize the following text. Your response should only include the answer. Do not provide any further explanation.\n{doc_markdown}\nSummary:"""
+    chat = [{"role": "user", "content": prompt}]
+    chat = tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True)
     
-    return tokenizer, model, device
+    input_tokens = tokenizer(chat, return_tensors="pt").to(device)
 
-uploaded_file = st.file_uploader(
-    "Upload file",
-    type=['pdf'],
-    help="Maximum file size: 2MB"
-)
-
-if uploaded_file is not None:
-    file_size_mb = len(uploaded_file.getvalue()) / (1024 * 1024)
+    with torch.no_grad():
+        output = model.generate(
+            **input_tokens,
+            max_new_tokens=200
+        )
     
-    if file_size_mb > 2:
-        st.error(f"⚠️ File size ({file_size_mb:.2f}MB) exceeds the 2MB limit. Please upload a smaller file.")
-    else:
-        st.success(f"✅ File uploaded: {uploaded_file.name} ({file_size_mb:.2f}MB)")
-        
-        # Button to convert document and generate summary
-        if st.button("Summarize", type="primary"):
-            try:
-                # Load model
-                tokenizer, model, device = load_model()
-                
-                # Save uploaded file to temporary location
+    output = tokenizer.batch_decode(output, skip_special_tokens=True)[0]
+    output = output.split("Summary:\nassistant")[-1].strip()
+    return output
+
+st.title("Summarization Pipeline")
+st.write("Summarize documents with IBM Granite 4.0 language models.")
+
+uploaded_file = st.file_uploader("Upload file", type=['pdf'])
+
+device = get_device()
+
+with st.spinner(f"Loading model on {device.upper()}..."):
+    model, tokenizer = load_model(device)
+
+selected_model_path = "ibm-granite/granite-4.0-h-tiny"
+
+if st.button("Summarize", type="primary"):
+    pipeline_options = PdfPipelineOptions(
+        artifacts_path=artifacts_path,
+        do_table_structure=True
+    )
+
+    doc_converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+        }
+    )
+
+    if uploaded_file is not None:
+        try:
+            with st.spinner("Converting document..."):
+                # Save uploaded file temporarily for Docling to process                
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
+                    tmp_file.write(uploaded_file.read())
                     tmp_file_path = tmp_file.name
                 
-                # Convert PDF to Markdown
-                with st.spinner("Converting..."):
-                    converter = DocumentConverter()
-                    result = converter.convert(tmp_file_path)
-                    markdown_text = result.document.export_to_markdown()
+                doc_markdown = convert(tmp_file_path, doc_converter)
                 
-                # Clean up temp file
-                Path(tmp_file_path).unlink()
-                
-                # Generate summary
-                with st.spinner("Summarizing..."):
-                    # Create chat template
-                    chat = [
-                        {
-                            "role": "user", 
-                            "content": f"Summarize the following document. Your response should only include the answer. Do not provide any further explanation.\n{markdown_text}\nSummary:"
-                        }
-                    ]
-                    
-                    # Apply chat template
-                    chat_formatted = tokenizer.apply_chat_template(
-                        chat, 
-                        tokenize=False, 
-                        add_generation_prompt=True
-                    )
-                    
-                    # Tokenize
-                    input_tokens = tokenizer(chat_formatted, return_tensors="pt").to(device)
-                    
-                    # Generate summary
-                    output = model.generate(
-                        **input_tokens,
-                        max_new_tokens=200
-                    )
-                    
-                    # Decode output
-                    output_text = tokenizer.batch_decode(output)[0]
-                    
-                    # Extract summary from output
-                    summary = output_text.split("Summary:")[-1].strip()
-                    
-                    # Clean up special tokens
-                    summary = summary.replace("<|end_of_text|>", "")
-                    summary = summary.replace("<|endoftext|>", "")
-                    summary = summary.replace("<|start_of_role|>assistant<|end_of_role|>", "")
-                    summary = summary.replace("<|start_of_role|>", "")
-                    summary = summary.replace("<|end_of_role|>", "")
-                    summary = summary.strip()
-                
-                # Store summary in session state
-                st.session_state.summary = summary
-                st.session_state.original_filename = uploaded_file.name
-                
-                st.success("✅ Done")
-                
-            except Exception as e:
-                st.error(f"❌ An error occurred: {str(e)}")
-                st.exception(e)
+                # Clean up temporary file
+                os.unlink(tmp_file_path)
 
-# Display summary if available
-if 'summary' in st.session_state:
-    st.subheader("Summary")
-    st.markdown(st.session_state.summary)
-      
-    # Generate filename for download
-    original_name = Path(st.session_state.original_filename).stem
-    download_filename = f"{original_name}_summary.md"
-    
-    st.download_button(
-        label="Download",
-        data=st.session_state.summary,
-        file_name=download_filename,
-        mime="text/markdown",
-        type="secondary"
-    )
+            with st.spinner("Summarizing..."):
+                start_time = time.time_ns()
+                summary = summarize(doc_markdown, model, tokenizer, device)
+                end_time = time.time_ns()
+                total_duration_ns = end_time - start_time
+
+            st.success("Done.")
+
+            st.subheader("Metrics")
+
+            st.metric("Model", selected_model_path)
+            st.metric("Total Duration (nanoseconds)", total_duration_ns)
+            
+            # Prepare JSON for download
+            summary_data = {
+                "model": selected_model_path,
+                "total_duration_ns": total_duration_ns,
+                "summary": summary
+            }
+            
+            json_str = json.dumps(summary_data, indent=2)
+            
+            st.download_button(
+                label="Download JSON",
+                data=json_str,
+                file_name=f"{uploaded_file.name}_summary.json",
+                mime="application/json"
+            )
+            
+        except Exception as e:
+            st.error(f"Syntax error: {str(e)}")
+    else:
+        st.warning("Upload a PDF file.")
