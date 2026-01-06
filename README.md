@@ -1,5 +1,5 @@
 # Summarization Pipeline
-Summarize documents with IBM Granite 4.0 language models..
+Summarize documents with IBM Granite 4.0 language models.
 
 ## Installation
 Run the following commands in the terminal.
