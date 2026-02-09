@@ -1,0 +1,12 @@
+[tool.ruff]
+exclude = ["streamlit_env"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.pyright]
+pythonVersion = "3.12"
+exclude = ["streamlit_env"]
