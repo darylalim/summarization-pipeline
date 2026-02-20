@@ -1,8 +1,5 @@
 .DS_Store
-.worktrees
 .ipynb_checkpoints
-*.ipynb
+.worktrees
 .venv
-simple_conversion.py
-summarization.py
-streamlit_app_v1.py
+__pycache__
