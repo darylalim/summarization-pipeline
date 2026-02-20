@@ -1,6 +1,6 @@
 # Summarization Pipeline
 
-Streamlit web app that converts PDF documents to Markdown using [Docling](https://docling-project.github.io/docling/) and summarizes text using [Falconsai/text_summarization](https://huggingface.co/Falconsai/text_summarization).
+Streamlit web app that converts PDF documents to Markdown using [Docling](https://docling-project.github.io/docling/) and summarizes text using [facebook/bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn).
 
 ## Setup
 
@@ -21,7 +21,7 @@ uv run streamlit run streamlit_app.py
 ```bash
 uv run ruff check .        # lint
 uv run ruff format .       # format
-uv run pyright             # typecheck
+uv run ty check            # typecheck
 uv run pytest              # test
 ```
 
