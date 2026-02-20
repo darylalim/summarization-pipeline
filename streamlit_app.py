@@ -67,7 +67,7 @@ def summarize(
     device: str,
 ) -> tuple[str, int, int]:
     """Summarize text and return (response, prompt_eval_count, eval_count)."""
-    encoded = tokenizer(doc_markdown, return_tensors="pt", truncation=True)
+    encoded = tokenizer(doc_markdown, return_tensors="pt", truncation=True, max_length=1024)
     input_ids: torch.Tensor = encoded["input_ids"].to(device)  # type: ignore[union-attr]
     attention_mask: torch.Tensor = encoded["attention_mask"].to(device)  # type: ignore[union-attr]
 
