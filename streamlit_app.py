@@ -16,7 +16,7 @@ from transformers import (
     PreTrainedTokenizerBase,
 )
 
-MODEL_NAME = "Falconsai/text_summarization"
+MODEL_NAME = "facebook/bart-large-cnn"
 ARTIFACTS_PATH = str(Path.home() / ".cache" / "docling" / "models")
 
 
@@ -88,7 +88,7 @@ def summarize(
 
 
 st.title("Summarization Pipeline")
-st.write("Summarize documents with Falconsai/text_summarization.")
+st.write("Summarize documents with facebook/bart-large-cnn.")
 
 uploaded_file = st.file_uploader("Upload file", type=["pdf"])
 device = get_device()
