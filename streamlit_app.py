@@ -67,22 +67,18 @@ def summarize(
     device: str,
 ) -> tuple[str, int, int]:
     """Summarize text and return (response, prompt_eval_count, eval_count)."""
-    encoded = tokenizer(doc_markdown, return_tensors="pt", truncation=True, max_length=1024)
-    input_ids: torch.Tensor = encoded["input_ids"].to(device)  # type: ignore[union-attr]
-    attention_mask: torch.Tensor = encoded["attention_mask"].to(device)  # type: ignore[union-attr]
+    encoded = tokenizer(
+        doc_markdown, return_tensors="pt", truncation=True, max_length=1024
+    ).to(device)
 
     with torch.inference_mode():
         output_ids = model.generate(  # type: ignore[operator]
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            max_length=1000,
-            min_length=30,
-            do_sample=False,
+            **encoded, max_length=1000, min_length=30, do_sample=False
         )
 
     return (
         tokenizer.decode(output_ids[0], skip_special_tokens=True),
-        int(input_ids.shape[1]),
+        int(encoded["input_ids"].shape[1]),
         int(output_ids.shape[1]),
     )
 
@@ -139,5 +135,3 @@ if st.button("Summarize", type="primary", disabled=uploaded_file is None):
 
         except Exception as e:
             st.exception(e)
-    else:
-        st.warning("Upload a PDF file.")
