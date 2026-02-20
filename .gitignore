@@ -1,4 +1,5 @@
 .DS_Store
+.worktrees
 .ipynb_checkpoints
 *.ipynb
 streamlit_env
