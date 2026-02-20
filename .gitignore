@@ -2,7 +2,7 @@
 .worktrees
 .ipynb_checkpoints
 *.ipynb
-streamlit_env
+.venv
 simple_conversion.py
 summarization.py
 streamlit_app_v1.py

@@ -1,5 +1,21 @@
-[tool.ruff]
-exclude = ["streamlit_env"]
+[project]
+name = "summarization-pipeline"
+version = "0.1.0"
+description = "Streamlit web app for PDF-to-Markdown conversion and text summarization"
+requires-python = ">=3.12"
+dependencies = [
+    "docling",
+    "streamlit",
+    "torch",
+    "transformers",
+]
+
+[dependency-groups]
+dev = [
+    "pyright",
+    "pytest",
+    "ruff",
+]
 
 [tool.ruff.lint.isort]
 combine-as-imports = true
@@ -9,4 +25,3 @@ pythonpath = ["."]
 
 [tool.pyright]
 pythonVersion = "3.12"
-exclude = ["streamlit_env"]

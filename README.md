@@ -5,10 +5,8 @@ Streamlit web app that converts PDF documents to Markdown using [Docling](https:
 ## Setup
 
 ```bash
-python3.12 -m venv streamlit_env
-source streamlit_env/bin/activate
-pip install -r requirements.txt
-streamlit run streamlit_app.py
+uv sync
+uv run streamlit run streamlit_app.py
 ```
 
 ## Usage
@@ -21,10 +19,10 @@ streamlit run streamlit_app.py
 ## Development
 
 ```bash
-ruff check .        # lint
-ruff format .       # format
-pyright             # typecheck
-pytest              # test
+uv run ruff check .        # lint
+uv run ruff format .       # format
+uv run pyright             # typecheck
+uv run pytest              # test
 ```
 
 Configuration is in `pyproject.toml`.

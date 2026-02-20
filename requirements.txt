@@ -1,7 +1,0 @@
-docling
-pyright
-pytest
-ruff
-streamlit
-torch
-transformers
