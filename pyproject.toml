@@ -12,7 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pyright",
+    "ty",
     "pytest",
     "ruff",
 ]
@@ -23,5 +23,5 @@ combine-as-imports = true
 [tool.pytest.ini_options]
 pythonpath = ["."]
 
-[tool.pyright]
-pythonVersion = "3.12"
+[tool.ty.environment]
+python-version = "3.12"
