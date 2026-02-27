@@ -55,7 +55,7 @@ model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-large-cnn")
 - `model.eval()` disables dropout; `torch.inference_mode()` disables autograd
 - `HybridChunker` with `HuggingFaceTokenizer(max_tokens=1024)` splits documents into token-aware chunks
 - Tokenizer truncation: `max_length=1024` (bart-large-cnn max position embeddings)
-- Generation: `max_length=142, min_length=56, num_beams=4, length_penalty=2.0, early_stopping=True, no_repeat_ngram_size=3`
+- Generation: `max_length=142, min_length=56, num_beams=4, do_sample=False, length_penalty=2.0, early_stopping=True, no_repeat_ngram_size=3`
 - Timing: `time.perf_counter()` (fractional seconds)
 
 ### Error Handling

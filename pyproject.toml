@@ -1,7 +1,7 @@
 [project]
 name = "summarization-pipeline"
 version = "0.1.0"
-description = "Streamlit web app for PDF-to-Markdown conversion and text summarization"
+description = "Streamlit web app for PDF document conversion and text summarization"
 requires-python = ">=3.12"
 dependencies = [
     "docling",

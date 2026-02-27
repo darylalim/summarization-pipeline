@@ -1,6 +1,6 @@
 # Summarization Pipeline
 
-Streamlit web app that converts PDF documents to Markdown using [Docling](https://docling-project.github.io/docling/) and summarizes text using [facebook/bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn).
+Streamlit web app for converting PDF documents using [Docling](https://docling-project.github.io/docling/) and summarizing text using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook. Long documents are chunked with Docling's `HybridChunker` before summarization.
 
 ## Setup
 
