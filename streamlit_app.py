@@ -124,12 +124,14 @@ if st.button("Summarize", type="primary", disabled=uploaded_file is None):
                     tmp_file.write(uploaded_file.read())
                     tmp_file.flush()
                     doc = convert(tmp_file.name, doc_converter)
-                    doc_markdown = doc.export_to_markdown()
+
+            with st.spinner("Chunking document..."):
+                chunks = chunk(doc, tokenizer)
 
             with st.spinner("Summarizing..."):
                 start = time.perf_counter()
                 response, prompt_eval_count, eval_count = summarize(
-                    doc_markdown, model, tokenizer, device
+                    chunks, model, tokenizer, device
                 )
                 total_duration = time.perf_counter() - start
 
@@ -141,6 +143,7 @@ if st.button("Summarize", type="primary", disabled=uploaded_file is None):
             st.subheader("Metrics")
             st.metric("Model", MODEL_NAME)
             st.metric("Total Duration (seconds)", f"{total_duration:.4f}")
+            st.metric("Chunk Count", len(chunks))
             st.metric("Prompt Eval Count", prompt_eval_count)
             st.metric("Eval Count", eval_count)
 
@@ -148,6 +151,7 @@ if st.button("Summarize", type="primary", disabled=uploaded_file is None):
                 "model": MODEL_NAME,
                 "response": response,
                 "total_duration": total_duration,
+                "chunk_count": len(chunks),
                 "prompt_eval_count": prompt_eval_count,
                 "eval_count": eval_count,
             }
