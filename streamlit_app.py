@@ -128,6 +128,10 @@ if st.button("Summarize", type="primary", disabled=uploaded_file is None):
             with st.spinner("Chunking document..."):
                 chunks = chunk(doc, tokenizer)
 
+            if not chunks:
+                st.warning("No text content could be extracted from the document.")
+                st.stop()
+
             with st.spinner("Summarizing..."):
                 start = time.perf_counter()
                 response, prompt_eval_count, eval_count = summarize(

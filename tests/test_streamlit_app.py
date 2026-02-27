@@ -49,8 +49,10 @@ class TestChunk:
 
         with (
             patch("streamlit_app.HybridChunker") as mock_chunker_cls,
-            patch("streamlit_app.HuggingFaceTokenizer"),
+            patch("streamlit_app.HuggingFaceTokenizer") as mock_hf_tokenizer_cls,
         ):
+            mock_hf_tokenizer = MagicMock()
+            mock_hf_tokenizer_cls.return_value = mock_hf_tokenizer
             mock_chunker = MagicMock()
             mock_chunker.chunk.return_value = iter([chunk_1, chunk_2])
             mock_chunker_cls.return_value = mock_chunker
@@ -58,6 +60,10 @@ class TestChunk:
             result = chunk(doc, tokenizer)
 
         assert result == ["First section content.", "Second section content."]
+        mock_hf_tokenizer_cls.assert_called_once_with(
+            tokenizer=tokenizer, max_tokens=512
+        )
+        mock_chunker_cls.assert_called_once_with(tokenizer=mock_hf_tokenizer)
         mock_chunker.chunk.assert_called_once_with(dl_doc=doc)
 
     def test_single_chunk(self) -> None:
@@ -69,8 +75,10 @@ class TestChunk:
 
         with (
             patch("streamlit_app.HybridChunker") as mock_chunker_cls,
-            patch("streamlit_app.HuggingFaceTokenizer"),
+            patch("streamlit_app.HuggingFaceTokenizer") as mock_hf_tokenizer_cls,
         ):
+            mock_hf_tokenizer = MagicMock()
+            mock_hf_tokenizer_cls.return_value = mock_hf_tokenizer
             mock_chunker = MagicMock()
             mock_chunker.chunk.return_value = iter([chunk_1])
             mock_chunker_cls.return_value = mock_chunker
@@ -78,6 +86,11 @@ class TestChunk:
             result = chunk(doc, tokenizer)
 
         assert result == ["Only section."]
+        mock_hf_tokenizer_cls.assert_called_once_with(
+            tokenizer=tokenizer, max_tokens=512
+        )
+        mock_chunker_cls.assert_called_once_with(tokenizer=mock_hf_tokenizer)
+        mock_chunker.chunk.assert_called_once_with(dl_doc=doc)
 
 
 class TestSummarize:
@@ -161,3 +174,25 @@ class TestSummarize:
         assert response == "Summary one. Summary two."
         assert prompt_eval_count == 5  # 3 + 2
         assert eval_count == 5  # 2 + 3
+        assert tokenizer.call_args_list == [
+            (
+                ("summarize: Chunk one text.",),
+                {"return_tensors": "pt", "truncation": True, "max_length": 512},
+            ),
+            (
+                ("summarize: Chunk two text.",),
+                {"return_tensors": "pt", "truncation": True, "max_length": 512},
+            ),
+        ]
+
+    def test_empty_chunks(self) -> None:
+        model = MagicMock()
+        tokenizer = MagicMock()
+
+        response, prompt_eval_count, eval_count = summarize([], model, tokenizer, "cpu")
+
+        assert response == ""
+        assert prompt_eval_count == 0
+        assert eval_count == 0
+        tokenizer.assert_not_called()
+        model.generate.assert_not_called()
