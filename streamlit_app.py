@@ -96,14 +96,15 @@ def summarize(
                 max_length=142,
                 min_length=56,
                 num_beams=4,
+                do_sample=False,
                 length_penalty=2.0,
                 early_stopping=True,
                 no_repeat_ngram_size=3,
             )
 
             summaries.append(tokenizer.decode(output_ids[0], skip_special_tokens=True))
-            total_prompt_tokens += encoded["input_ids"].shape[1]
-            total_output_tokens += output_ids.shape[1]
+            total_prompt_tokens += int(encoded["input_ids"].shape[1])
+            total_output_tokens += int(output_ids.shape[1])
 
     return " ".join(summaries), total_prompt_tokens, total_output_tokens
 
