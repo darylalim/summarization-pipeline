@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Streamlit web app for converting PDF documents to Markdown using [Docling](https://docling-project.github.io/docling/) and summarizing text using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook.
+Streamlit web app for converting PDF documents using [Docling](https://docling-project.github.io/docling/) and summarizing text using [flan-t5-large](https://huggingface.co/google/flan-t5-large) by Google. Long documents are chunked with Docling's `HybridChunker` before summarization.
 
 ## Setup
 
@@ -25,7 +25,7 @@ uv run streamlit run streamlit_app.py
 
 ## Dependencies
 
-- `docling` — PDF-to-Markdown conversion
+- `docling` — PDF conversion and chunking (`HybridChunker`)
 - `transformers` — Hugging Face model loading and generation
 - `torch` — tensor operations
 - `streamlit` — web UI
@@ -43,8 +43,8 @@ uv run streamlit run streamlit_app.py
 ```python
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-cnn")
-model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-large-cnn")
+tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-large")
+model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
 ```
 
 ### Performance
@@ -53,8 +53,10 @@ model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-large-cnn")
 - Docling models pre-downloaded to `~/.cache/docling/models/`
 - Device priority: MPS > CUDA > CPU
 - `model.eval()` disables dropout; `torch.inference_mode()` disables autograd
-- Tokenizer truncation: `max_length=1024` (BART positional embedding limit)
-- Generation: `max_length=1000, min_length=30, do_sample=False`
+- `HybridChunker` with `HuggingFaceTokenizer(max_tokens=512)` splits documents into token-aware chunks
+- Input prefixed with `"summarize: "` (flan-t5 task prefix)
+- Tokenizer truncation: `max_length=512` (flan-t5-large training limit)
+- Generation: `max_length=150, min_length=30, num_beams=4, do_sample=False, early_stopping=True, no_repeat_ngram_size=3`
 - Timing: `time.perf_counter()` (fractional seconds)
 
 ### Error Handling
@@ -68,13 +70,14 @@ Fields in the downloadable JSON via `st.download_button`:
 - `model` — model name
 - `response` — generated summary text
 - `total_duration` — generation time in seconds
-- `prompt_eval_count` — number of input tokens
-- `eval_count` — number of output tokens
+- `chunk_count` — number of document chunks
+- `prompt_eval_count` — total input tokens across all chunks
+- `eval_count` — total output tokens across all chunks
 
 `st.metric` displays all fields except `response`.
 
 ## Tests
 
-- `tests/test_streamlit_app.py` — unit tests for `get_device`, `convert`, `summarize` (mocked, no model download)
+- `tests/test_streamlit_app.py` — unit tests for `get_device`, `convert`, `chunk`, `summarize` (mocked, no model download)
 - `tests/data/pdf/test_solar_system.pdf` — single-page PDF
 - `tests/data/pdf/test_ai_history.pdf` — two-page PDF
