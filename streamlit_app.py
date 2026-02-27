@@ -5,11 +5,13 @@ from pathlib import Path
 
 import streamlit as st
 import torch
+from docling.chunking import HybridChunker
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.document import DoclingDocument
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.utils.model_downloader import download_models
+from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
@@ -59,6 +61,14 @@ def convert(source: str, doc_converter: DocumentConverter) -> DoclingDocument:
         source=source, max_num_pages=100, max_file_size=20 * 1024 * 1024
     )
     return result.document
+
+
+def chunk(doc: DoclingDocument, tokenizer: PreTrainedTokenizerBase) -> list[str]:
+    """Split a DoclingDocument into token-aware text chunks."""
+    chunker = HybridChunker(
+        tokenizer=HuggingFaceTokenizer(tokenizer=tokenizer, max_tokens=512),
+    )
+    return [c.text for c in chunker.chunk(dl_doc=doc)]
 
 
 def summarize(

@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import torch
 
-from streamlit_app import convert, get_device, summarize
+from streamlit_app import chunk, convert, get_device, summarize
 
 
 class TestGetDevice:
@@ -35,6 +35,49 @@ class TestConvert:
             max_num_pages=100,
             max_file_size=20 * 1024 * 1024,
         )
+
+
+class TestChunk:
+    def test_returns_chunk_texts(self) -> None:
+        chunk_1 = MagicMock()
+        chunk_1.text = "First section content."
+        chunk_2 = MagicMock()
+        chunk_2.text = "Second section content."
+
+        doc = MagicMock()
+        tokenizer = MagicMock()
+
+        with (
+            patch("streamlit_app.HybridChunker") as mock_chunker_cls,
+            patch("streamlit_app.HuggingFaceTokenizer"),
+        ):
+            mock_chunker = MagicMock()
+            mock_chunker.chunk.return_value = iter([chunk_1, chunk_2])
+            mock_chunker_cls.return_value = mock_chunker
+
+            result = chunk(doc, tokenizer)
+
+        assert result == ["First section content.", "Second section content."]
+        mock_chunker.chunk.assert_called_once_with(dl_doc=doc)
+
+    def test_single_chunk(self) -> None:
+        chunk_1 = MagicMock()
+        chunk_1.text = "Only section."
+
+        doc = MagicMock()
+        tokenizer = MagicMock()
+
+        with (
+            patch("streamlit_app.HybridChunker") as mock_chunker_cls,
+            patch("streamlit_app.HuggingFaceTokenizer"),
+        ):
+            mock_chunker = MagicMock()
+            mock_chunker.chunk.return_value = iter([chunk_1])
+            mock_chunker_cls.return_value = mock_chunker
+
+            result = chunk(doc, tokenizer)
+
+        assert result == ["Only section."]
 
 
 class TestSummarize:
