@@ -1,8 +1,22 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
 import torch
 
 from streamlit_app import chunk, convert, get_device, summarize
+
+
+def _make_encoded(input_ids: torch.Tensor) -> MagicMock:
+    attention_mask = torch.ones_like(input_ids)
+    encoded = MagicMock()
+    encoded.__getitem__ = lambda self, key: {
+        "input_ids": input_ids,
+        "attention_mask": attention_mask,
+    }[key]
+    encoded.keys.return_value = ["input_ids", "attention_mask"]
+    encoded.__iter__ = lambda self: iter(["input_ids", "attention_mask"])
+    encoded.to.return_value = encoded
+    return encoded
 
 
 class TestGetDevice:
@@ -38,11 +52,15 @@ class TestConvert:
 
 
 class TestChunk:
-    def test_returns_chunk_texts(self) -> None:
-        chunk_1 = MagicMock()
-        chunk_1.text = "First section content."
-        chunk_2 = MagicMock()
-        chunk_2.text = "Second section content."
+    @pytest.mark.parametrize(
+        "chunk_texts",
+        [
+            ["First section content.", "Second section content."],
+            ["Only section."],
+        ],
+    )
+    def test_returns_chunk_texts(self, chunk_texts: list[str]) -> None:
+        chunks = [MagicMock(text=t) for t in chunk_texts]
 
         doc = MagicMock()
         tokenizer = MagicMock()
@@ -54,40 +72,14 @@ class TestChunk:
             mock_hf_tokenizer = MagicMock()
             mock_hf_tokenizer_cls.return_value = mock_hf_tokenizer
             mock_chunker = MagicMock()
-            mock_chunker.chunk.return_value = iter([chunk_1, chunk_2])
+            mock_chunker.chunk.return_value = iter(chunks)
             mock_chunker_cls.return_value = mock_chunker
 
             result = chunk(doc, tokenizer)
 
-        assert result == ["First section content.", "Second section content."]
+        assert result == chunk_texts
         mock_hf_tokenizer_cls.assert_called_once_with(
-            tokenizer=tokenizer, max_tokens=512
-        )
-        mock_chunker_cls.assert_called_once_with(tokenizer=mock_hf_tokenizer)
-        mock_chunker.chunk.assert_called_once_with(dl_doc=doc)
-
-    def test_single_chunk(self) -> None:
-        chunk_1 = MagicMock()
-        chunk_1.text = "Only section."
-
-        doc = MagicMock()
-        tokenizer = MagicMock()
-
-        with (
-            patch("streamlit_app.HybridChunker") as mock_chunker_cls,
-            patch("streamlit_app.HuggingFaceTokenizer") as mock_hf_tokenizer_cls,
-        ):
-            mock_hf_tokenizer = MagicMock()
-            mock_hf_tokenizer_cls.return_value = mock_hf_tokenizer
-            mock_chunker = MagicMock()
-            mock_chunker.chunk.return_value = iter([chunk_1])
-            mock_chunker_cls.return_value = mock_chunker
-
-            result = chunk(doc, tokenizer)
-
-        assert result == ["Only section."]
-        mock_hf_tokenizer_cls.assert_called_once_with(
-            tokenizer=tokenizer, max_tokens=512
+            tokenizer=tokenizer, max_tokens=1024
         )
         mock_chunker_cls.assert_called_once_with(tokenizer=mock_hf_tokenizer)
         mock_chunker.chunk.assert_called_once_with(dl_doc=doc)
@@ -96,17 +88,9 @@ class TestChunk:
 class TestSummarize:
     def test_returns_response_and_counts(self) -> None:
         input_ids = torch.tensor([[1, 2, 3, 4, 5]])
-        attention_mask = torch.ones_like(input_ids)
         output_ids = torch.tensor([[1, 2, 3]])
 
-        encoded = MagicMock()
-        encoded.__getitem__ = lambda self, key: {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-        }[key]
-        encoded.keys.return_value = ["input_ids", "attention_mask"]
-        encoded.__iter__ = lambda self: iter(["input_ids", "attention_mask"])
-        encoded.to.return_value = encoded
+        encoded = _make_encoded(input_ids)
 
         tokenizer = MagicMock()
         tokenizer.return_value = encoded
@@ -123,10 +107,10 @@ class TestSummarize:
         assert prompt_eval_count == 5
         assert eval_count == 3
         tokenizer.assert_called_once_with(
-            "summarize: Some long document text.",
+            "Some long document text.",
             return_tensors="pt",
             truncation=True,
-            max_length=512,
+            max_length=1024,
         )
         encoded.to.assert_called_once_with("cpu")
         tokenizer.decode.assert_called_once()
@@ -137,28 +121,11 @@ class TestSummarize:
     def test_multi_chunk_concatenates(self) -> None:
         input_ids_1 = torch.tensor([[1, 2, 3]])
         input_ids_2 = torch.tensor([[4, 5]])
-        attention_mask_1 = torch.ones_like(input_ids_1)
-        attention_mask_2 = torch.ones_like(input_ids_2)
         output_ids_1 = torch.tensor([[10, 11]])
         output_ids_2 = torch.tensor([[12, 13, 14]])
 
-        encoded_1 = MagicMock()
-        encoded_1.__getitem__ = lambda self, key: {
-            "input_ids": input_ids_1,
-            "attention_mask": attention_mask_1,
-        }[key]
-        encoded_1.keys.return_value = ["input_ids", "attention_mask"]
-        encoded_1.__iter__ = lambda self: iter(["input_ids", "attention_mask"])
-        encoded_1.to.return_value = encoded_1
-
-        encoded_2 = MagicMock()
-        encoded_2.__getitem__ = lambda self, key: {
-            "input_ids": input_ids_2,
-            "attention_mask": attention_mask_2,
-        }[key]
-        encoded_2.keys.return_value = ["input_ids", "attention_mask"]
-        encoded_2.__iter__ = lambda self: iter(["input_ids", "attention_mask"])
-        encoded_2.to.return_value = encoded_2
+        encoded_1 = _make_encoded(input_ids_1)
+        encoded_2 = _make_encoded(input_ids_2)
 
         tokenizer = MagicMock()
         tokenizer.side_effect = [encoded_1, encoded_2]
@@ -176,12 +143,12 @@ class TestSummarize:
         assert eval_count == 5  # 2 + 3
         assert tokenizer.call_args_list == [
             (
-                ("summarize: Chunk one text.",),
-                {"return_tensors": "pt", "truncation": True, "max_length": 512},
+                ("Chunk one text.",),
+                {"return_tensors": "pt", "truncation": True, "max_length": 1024},
             ),
             (
-                ("summarize: Chunk two text.",),
-                {"return_tensors": "pt", "truncation": True, "max_length": 512},
+                ("Chunk two text.",),
+                {"return_tensors": "pt", "truncation": True, "max_length": 1024},
             ),
         ]
 

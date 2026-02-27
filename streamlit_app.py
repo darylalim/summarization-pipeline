@@ -19,7 +19,7 @@ from transformers import (
     PreTrainedTokenizerBase,
 )
 
-MODEL_NAME = "google/flan-t5-large"
+MODEL_NAME = "facebook/bart-large-cnn"
 ARTIFACTS_PATH = str(Path.home() / ".cache" / "docling" / "models")
 
 
@@ -66,7 +66,7 @@ def convert(source: str, doc_converter: DocumentConverter) -> DoclingDocument:
 def chunk(doc: DoclingDocument, tokenizer: PreTrainedTokenizerBase) -> list[str]:
     """Split a DoclingDocument into token-aware text chunks."""
     chunker = HybridChunker(
-        tokenizer=HuggingFaceTokenizer(tokenizer=tokenizer, max_tokens=512),
+        tokenizer=HuggingFaceTokenizer(tokenizer=tokenizer, max_tokens=1024),
     )
     return [c.text for c in chunker.chunk(dl_doc=doc)]
 
@@ -82,34 +82,34 @@ def summarize(
     total_prompt_tokens = 0
     total_output_tokens = 0
 
-    for text in chunks:
-        encoded = tokenizer(
-            f"summarize: {text}",
-            return_tensors="pt",
-            truncation=True,
-            max_length=512,
-        ).to(device)
+    with torch.inference_mode():
+        for text in chunks:
+            encoded = tokenizer(
+                text,
+                return_tensors="pt",
+                truncation=True,
+                max_length=1024,
+            ).to(device)
 
-        with torch.inference_mode():
             output_ids = model.generate(  # type: ignore[operator]
                 **encoded,
-                max_length=150,
-                min_length=30,
+                max_length=142,
+                min_length=56,
                 num_beams=4,
-                do_sample=False,
+                length_penalty=2.0,
                 early_stopping=True,
                 no_repeat_ngram_size=3,
             )
 
-        summaries.append(tokenizer.decode(output_ids[0], skip_special_tokens=True))
-        total_prompt_tokens += int(encoded["input_ids"].shape[1])
-        total_output_tokens += int(output_ids.shape[1])
+            summaries.append(tokenizer.decode(output_ids[0], skip_special_tokens=True))
+            total_prompt_tokens += encoded["input_ids"].shape[1]
+            total_output_tokens += output_ids.shape[1]
 
     return " ".join(summaries), total_prompt_tokens, total_output_tokens
 
 
 st.title("Summarization Pipeline")
-st.write("Summarize documents with google/flan-t5-large.")
+st.write("Summarize documents with facebook/bart-large-cnn.")
 
 uploaded_file = st.file_uploader("Upload file", type=["pdf"])
 device = get_device()

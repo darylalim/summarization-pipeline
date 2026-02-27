@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Streamlit web app for converting PDF documents using [Docling](https://docling-project.github.io/docling/) and summarizing text using [flan-t5-large](https://huggingface.co/google/flan-t5-large) by Google. Long documents are chunked with Docling's `HybridChunker` before summarization.
+Streamlit web app for converting PDF documents using [Docling](https://docling-project.github.io/docling/) and summarizing text using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook. Long documents are chunked with Docling's `HybridChunker` before summarization.
 
 ## Setup
 
@@ -43,8 +43,8 @@ uv run streamlit run streamlit_app.py
 ```python
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-large")
-model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
+tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-cnn")
+model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-large-cnn")
 ```
 
 ### Performance
@@ -53,10 +53,9 @@ model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
 - Docling models pre-downloaded to `~/.cache/docling/models/`
 - Device priority: MPS > CUDA > CPU
 - `model.eval()` disables dropout; `torch.inference_mode()` disables autograd
-- `HybridChunker` with `HuggingFaceTokenizer(max_tokens=512)` splits documents into token-aware chunks
-- Input prefixed with `"summarize: "` (flan-t5 task prefix)
-- Tokenizer truncation: `max_length=512` (flan-t5-large training limit)
-- Generation: `max_length=150, min_length=30, num_beams=4, do_sample=False, early_stopping=True, no_repeat_ngram_size=3`
+- `HybridChunker` with `HuggingFaceTokenizer(max_tokens=1024)` splits documents into token-aware chunks
+- Tokenizer truncation: `max_length=1024` (bart-large-cnn max position embeddings)
+- Generation: `max_length=142, min_length=56, num_beams=4, length_penalty=2.0, early_stopping=True, no_repeat_ngram_size=3`
 - Timing: `time.perf_counter()` (fractional seconds)
 
 ### Error Handling
