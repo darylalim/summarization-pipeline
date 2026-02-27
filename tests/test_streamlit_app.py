@@ -103,20 +103,61 @@ class TestSummarize:
         model.generate.return_value = output_ids
 
         response, prompt_eval_count, eval_count = summarize(
-            "Some long document text.", model, tokenizer, "cpu"
+            ["Some long document text."], model, tokenizer, "cpu"
         )
 
         assert response == "A short summary."
         assert prompt_eval_count == 5
         assert eval_count == 3
         tokenizer.assert_called_once_with(
-            "Some long document text.",
+            "summarize: Some long document text.",
             return_tensors="pt",
             truncation=True,
-            max_length=1024,
+            max_length=512,
         )
         encoded.to.assert_called_once_with("cpu")
         tokenizer.decode.assert_called_once()
         decode_args, decode_kwargs = tokenizer.decode.call_args
         assert torch.equal(decode_args[0], output_ids[0])
         assert decode_kwargs == {"skip_special_tokens": True}
+
+    def test_multi_chunk_concatenates(self) -> None:
+        input_ids_1 = torch.tensor([[1, 2, 3]])
+        input_ids_2 = torch.tensor([[4, 5]])
+        attention_mask_1 = torch.ones_like(input_ids_1)
+        attention_mask_2 = torch.ones_like(input_ids_2)
+        output_ids_1 = torch.tensor([[10, 11]])
+        output_ids_2 = torch.tensor([[12, 13, 14]])
+
+        encoded_1 = MagicMock()
+        encoded_1.__getitem__ = lambda self, key: {
+            "input_ids": input_ids_1,
+            "attention_mask": attention_mask_1,
+        }[key]
+        encoded_1.keys.return_value = ["input_ids", "attention_mask"]
+        encoded_1.__iter__ = lambda self: iter(["input_ids", "attention_mask"])
+        encoded_1.to.return_value = encoded_1
+
+        encoded_2 = MagicMock()
+        encoded_2.__getitem__ = lambda self, key: {
+            "input_ids": input_ids_2,
+            "attention_mask": attention_mask_2,
+        }[key]
+        encoded_2.keys.return_value = ["input_ids", "attention_mask"]
+        encoded_2.__iter__ = lambda self: iter(["input_ids", "attention_mask"])
+        encoded_2.to.return_value = encoded_2
+
+        tokenizer = MagicMock()
+        tokenizer.side_effect = [encoded_1, encoded_2]
+        tokenizer.decode.side_effect = ["Summary one.", "Summary two."]
+
+        model = MagicMock()
+        model.generate.side_effect = [output_ids_1, output_ids_2]
+
+        response, prompt_eval_count, eval_count = summarize(
+            ["Chunk one text.", "Chunk two text."], model, tokenizer, "cpu"
+        )
+
+        assert response == "Summary one. Summary two."
+        assert prompt_eval_count == 5  # 3 + 2
+        assert eval_count == 5  # 2 + 3

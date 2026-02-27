@@ -19,7 +19,7 @@ from transformers import (
     PreTrainedTokenizerBase,
 )
 
-MODEL_NAME = "facebook/bart-large-cnn"
+MODEL_NAME = "google/flan-t5-large"
 ARTIFACTS_PATH = str(Path.home() / ".cache" / "docling" / "models")
 
 
@@ -72,30 +72,44 @@ def chunk(doc: DoclingDocument, tokenizer: PreTrainedTokenizerBase) -> list[str]
 
 
 def summarize(
-    doc_markdown: str,
+    chunks: list[str],
     model: PreTrainedModel,
     tokenizer: PreTrainedTokenizerBase,
     device: str,
 ) -> tuple[str, int, int]:
-    """Summarize text and return (response, prompt_eval_count, eval_count)."""
-    encoded = tokenizer(
-        doc_markdown, return_tensors="pt", truncation=True, max_length=1024
-    ).to(device)
+    """Summarize text chunks and return (response, prompt_eval_count, eval_count)."""
+    summaries: list[str] = []
+    total_prompt_tokens = 0
+    total_output_tokens = 0
 
-    with torch.inference_mode():
-        output_ids = model.generate(  # type: ignore[operator]
-            **encoded, max_length=1000, min_length=30, do_sample=False
-        )
+    for text in chunks:
+        encoded = tokenizer(
+            f"summarize: {text}",
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+        ).to(device)
 
-    return (
-        tokenizer.decode(output_ids[0], skip_special_tokens=True),
-        int(encoded["input_ids"].shape[1]),
-        int(output_ids.shape[1]),
-    )
+        with torch.inference_mode():
+            output_ids = model.generate(  # type: ignore[operator]
+                **encoded,
+                max_length=150,
+                min_length=30,
+                num_beams=4,
+                do_sample=False,
+                early_stopping=True,
+                no_repeat_ngram_size=3,
+            )
+
+        summaries.append(tokenizer.decode(output_ids[0], skip_special_tokens=True))
+        total_prompt_tokens += int(encoded["input_ids"].shape[1])
+        total_output_tokens += int(output_ids.shape[1])
+
+    return " ".join(summaries), total_prompt_tokens, total_output_tokens
 
 
 st.title("Summarization Pipeline")
-st.write("Summarize documents with facebook/bart-large-cnn.")
+st.write("Summarize documents with google/flan-t5-large.")
 
 uploaded_file = st.file_uploader("Upload file", type=["pdf"])
 device = get_device()
