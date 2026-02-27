@@ -22,15 +22,14 @@ class TestGetDevice:
 
 
 class TestConvert:
-    def test_returns_markdown(self) -> None:
+    def test_returns_docling_document(self) -> None:
+        mock_document = MagicMock()
         doc_converter = MagicMock()
-        doc_converter.convert.return_value.document.export_to_markdown.return_value = (
-            "# Title\n\nBody text."
-        )
+        doc_converter.convert.return_value.document = mock_document
 
         result = convert("/tmp/test.pdf", doc_converter)
 
-        assert result == "# Title\n\nBody text."
+        assert result is mock_document
         doc_converter.convert.assert_called_once_with(
             source="/tmp/test.pdf",
             max_num_pages=100,

@@ -6,6 +6,7 @@ from pathlib import Path
 import streamlit as st
 import torch
 from docling.datamodel.base_models import InputFormat
+from docling.datamodel.document import DoclingDocument
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.utils.model_downloader import download_models
@@ -52,12 +53,12 @@ def load_doc_converter() -> DocumentConverter:
     )
 
 
-def convert(source: str, doc_converter: DocumentConverter) -> str:
-    """Convert a PDF file to Markdown via Docling."""
+def convert(source: str, doc_converter: DocumentConverter) -> DoclingDocument:
+    """Convert a PDF file to a DoclingDocument."""
     result = doc_converter.convert(
         source=source, max_num_pages=100, max_file_size=20 * 1024 * 1024
     )
-    return result.document.export_to_markdown()
+    return result.document
 
 
 def summarize(
@@ -98,7 +99,8 @@ if st.button("Summarize", type="primary", disabled=uploaded_file is None):
                 with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp_file:
                     tmp_file.write(uploaded_file.read())
                     tmp_file.flush()
-                    doc_markdown = convert(tmp_file.name, doc_converter)
+                    doc = convert(tmp_file.name, doc_converter)
+                    doc_markdown = doc.export_to_markdown()
 
             with st.spinner("Summarizing..."):
                 start = time.perf_counter()
