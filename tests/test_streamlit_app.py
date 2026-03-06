@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 
-from streamlit_app import chunk, convert, get_device, summarize
+from streamlit_app import chunk, extract, get_device, summarize
 
 
 def _make_encoded(input_ids: torch.Tensor) -> MagicMock:
@@ -35,54 +35,23 @@ class TestGetDevice:
         assert get_device() == "cpu"
 
 
-class TestConvert:
-    def test_returns_docling_document(self) -> None:
-        mock_document = MagicMock()
-        doc_converter = MagicMock()
-        doc_converter.convert.return_value.document = mock_document
+class TestExtract:
+    @patch("streamlit_app.Article")
+    def test_returns_article(self, mock_article_cls: MagicMock) -> None:
+        mock_article = MagicMock()
+        mock_article.title = "Breaking News"
+        mock_article.authors = ["Jane Doe"]
+        mock_article.publish_date = "2026-01-15"
+        mock_article.text = "Article body text."
+        mock_article_cls.return_value = mock_article
 
-        result = convert("/tmp/test.pdf", doc_converter)
+        result = extract("https://example.com/article")
 
-        assert result is mock_document
-        doc_converter.convert.assert_called_once_with(
-            source="/tmp/test.pdf",
-            max_num_pages=100,
-            max_file_size=20 * 1024 * 1024,
-        )
-
-
-class TestChunk:
-    @pytest.mark.parametrize(
-        "chunk_texts",
-        [
-            ["First section content.", "Second section content."],
-            ["Only section."],
-        ],
-    )
-    def test_returns_chunk_texts(self, chunk_texts: list[str]) -> None:
-        chunks = [MagicMock(text=t) for t in chunk_texts]
-
-        doc = MagicMock()
-        tokenizer = MagicMock()
-
-        with (
-            patch("streamlit_app.HybridChunker") as mock_chunker_cls,
-            patch("streamlit_app.HuggingFaceTokenizer") as mock_hf_tokenizer_cls,
-        ):
-            mock_hf_tokenizer = MagicMock()
-            mock_hf_tokenizer_cls.return_value = mock_hf_tokenizer
-            mock_chunker = MagicMock()
-            mock_chunker.chunk.return_value = iter(chunks)
-            mock_chunker_cls.return_value = mock_chunker
-
-            result = chunk(doc, tokenizer)
-
-        assert result == chunk_texts
-        mock_hf_tokenizer_cls.assert_called_once_with(
-            tokenizer=tokenizer, max_tokens=1024
-        )
-        mock_chunker_cls.assert_called_once_with(tokenizer=mock_hf_tokenizer)
-        mock_chunker.chunk.assert_called_once_with(dl_doc=doc)
+        mock_article_cls.assert_called_once_with("https://example.com/article")
+        mock_article.download.assert_called_once()
+        mock_article.parse.assert_called_once()
+        mock_article.nlp.assert_called_once()
+        assert result is mock_article
 
 
 class TestSummarize:

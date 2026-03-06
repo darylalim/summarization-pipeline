@@ -1,17 +1,9 @@
 import json
-import tempfile
 import time
-from pathlib import Path
 
 import streamlit as st
 import torch
-from docling.chunking import HybridChunker
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.document import DoclingDocument
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.utils.model_downloader import download_models
-from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
+from newspaper import Article
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
@@ -20,7 +12,6 @@ from transformers import (
 )
 
 MODEL_NAME = "facebook/bart-large-cnn"
-ARTIFACTS_PATH = str(Path.home() / ".cache" / "docling" / "models")
 
 
 def get_device() -> str:
@@ -40,35 +31,18 @@ def load_model(device: str) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
     return model, tokenizer
 
 
-@st.cache_resource
-def load_doc_converter() -> DocumentConverter:
-    """Pre-download Docling models and build the PDF converter."""
-    download_models()
-    pipeline_options = PdfPipelineOptions(
-        artifacts_path=ARTIFACTS_PATH,
-        do_table_structure=True,
-    )
-    return DocumentConverter(
-        format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-        }
-    )
+def extract(url: str) -> Article:
+    """Download and parse a news article from a URL."""
+    article = Article(url)
+    article.download()
+    article.parse()
+    article.nlp()
+    return article
 
 
-def convert(source: str, doc_converter: DocumentConverter) -> DoclingDocument:
-    """Convert a PDF file to a DoclingDocument."""
-    result = doc_converter.convert(
-        source=source, max_num_pages=100, max_file_size=20 * 1024 * 1024
-    )
-    return result.document
-
-
-def chunk(doc: DoclingDocument, tokenizer: PreTrainedTokenizerBase) -> list[str]:
-    """Split a DoclingDocument into token-aware text chunks."""
-    chunker = HybridChunker(
-        tokenizer=HuggingFaceTokenizer(tokenizer=tokenizer, max_tokens=1024),
-    )
-    return [c.text for c in chunker.chunk(dl_doc=doc)]
+def chunk(text: str, tokenizer: PreTrainedTokenizerBase) -> list[str]:
+    """Split text into token-aware chunks."""
+    raise NotImplementedError
 
 
 def summarize(
@@ -112,61 +86,5 @@ def summarize(
 st.title("Summarization Pipeline")
 st.write("Summarize documents with facebook/bart-large-cnn.")
 
-uploaded_file = st.file_uploader("Upload file", type=["pdf"])
 device = get_device()
 model, tokenizer = load_model(device)
-doc_converter = load_doc_converter()
-
-if st.button("Summarize", type="primary", disabled=uploaded_file is None):
-    if uploaded_file is not None:
-        try:
-            with st.spinner("Converting document..."):
-                with tempfile.NamedTemporaryFile(suffix=".pdf") as tmp_file:
-                    tmp_file.write(uploaded_file.read())
-                    tmp_file.flush()
-                    doc = convert(tmp_file.name, doc_converter)
-
-            with st.spinner("Chunking document..."):
-                chunks = chunk(doc, tokenizer)
-
-            if not chunks:
-                st.warning("No text content could be extracted from the document.")
-                st.stop()
-
-            with st.spinner("Summarizing..."):
-                start = time.perf_counter()
-                response, prompt_eval_count, eval_count = summarize(
-                    chunks, model, tokenizer, device
-                )
-                total_duration = time.perf_counter() - start
-
-            st.success("Done.")
-
-            st.subheader("Summary")
-            st.write(response)
-
-            st.subheader("Metrics")
-            st.metric("Model", MODEL_NAME)
-            st.metric("Total Duration (seconds)", f"{total_duration:.4f}")
-            st.metric("Chunk Count", len(chunks))
-            st.metric("Prompt Eval Count", prompt_eval_count)
-            st.metric("Eval Count", eval_count)
-
-            summary_data = {
-                "model": MODEL_NAME,
-                "response": response,
-                "total_duration": total_duration,
-                "chunk_count": len(chunks),
-                "prompt_eval_count": prompt_eval_count,
-                "eval_count": eval_count,
-            }
-
-            st.download_button(
-                label="Download JSON",
-                data=json.dumps(summary_data, indent=2),
-                file_name=f"{uploaded_file.name}_summary.json",
-                mime="application/json",
-            )
-
-        except Exception as e:
-            st.exception(e)
