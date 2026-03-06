@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import torch
 
-from streamlit_app import extract, get_device, summarize
+from streamlit_app import chunk, extract, get_device, summarize
 
 
 def _make_encoded(input_ids: torch.Tensor) -> MagicMock:
@@ -51,6 +51,43 @@ class TestExtract:
         mock_article.parse.assert_called_once()
         mock_article.nlp.assert_called_once()
         assert result is mock_article
+
+
+class TestChunk:
+    def test_short_text_single_chunk(self) -> None:
+        tokenizer = MagicMock()
+        tokenizer.encode.return_value = list(range(100))
+
+        result = chunk("Short article text.", tokenizer)
+
+        assert result == ["Short article text."]
+        tokenizer.encode.assert_called_once_with(
+            "Short article text.", add_special_tokens=False
+        )
+
+    def test_long_text_splits_into_chunks(self) -> None:
+        tokenizer = MagicMock()
+        tokenizer.encode.return_value = list(range(2048))
+        tokenizer.decode.side_effect = ["chunk one text", "chunk two text"]
+
+        result = chunk("Long article text.", tokenizer)
+
+        assert result == ["chunk one text", "chunk two text"]
+        assert tokenizer.decode.call_count == 2
+        tokenizer.decode.assert_any_call(
+            list(range(1024)), skip_special_tokens=True
+        )
+        tokenizer.decode.assert_any_call(
+            list(range(1024, 2048)), skip_special_tokens=True
+        )
+
+    def test_empty_text_returns_empty(self) -> None:
+        tokenizer = MagicMock()
+        tokenizer.encode.return_value = []
+
+        result = chunk("", tokenizer)
+
+        assert result == []
 
 
 class TestSummarize:

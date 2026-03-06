@@ -38,8 +38,16 @@ def extract(url: str) -> Article:
 
 
 def chunk(text: str, tokenizer: PreTrainedTokenizerBase) -> list[str]:
-    """Split text into token-aware chunks."""
-    raise NotImplementedError
+    """Split text into token-aware chunks of up to 1024 tokens."""
+    token_ids = tokenizer.encode(text, add_special_tokens=False)
+    if not token_ids:
+        return []
+    if len(token_ids) <= 1024:
+        return [text]
+    return [
+        tokenizer.decode(token_ids[i : i + 1024], skip_special_tokens=True)
+        for i in range(0, len(token_ids), 1024)
+    ]
 
 
 def summarize(
