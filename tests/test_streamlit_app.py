@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
 import torch
 
 from streamlit_app import chunk, extract, get_device, summarize
@@ -52,6 +53,15 @@ class TestExtract:
         mock_article.nlp.assert_called_once()
         assert result is mock_article
 
+    @patch("streamlit_app.Article")
+    def test_download_failure_propagates(self, mock_article_cls: MagicMock) -> None:
+        mock_article = MagicMock()
+        mock_article.download.side_effect = Exception("Network error")
+        mock_article_cls.return_value = mock_article
+
+        with pytest.raises(Exception, match="Network error"):
+            extract("https://example.com/article")
+
 
 class TestChunk:
     def test_short_text_single_chunk(self) -> None:
@@ -78,6 +88,27 @@ class TestChunk:
         tokenizer.decode.assert_any_call(
             list(range(1024, 2048)), skip_special_tokens=True
         )
+
+    def test_exact_1024_tokens_single_chunk(self) -> None:
+        tokenizer = MagicMock()
+        tokenizer.encode.return_value = list(range(1024))
+
+        result = chunk("Exactly 1024 tokens.", tokenizer)
+
+        assert result == ["Exactly 1024 tokens."]
+        tokenizer.decode.assert_not_called()
+
+    def test_1025_tokens_splits_into_two_chunks(self) -> None:
+        tokenizer = MagicMock()
+        tokenizer.encode.return_value = list(range(1025))
+        tokenizer.decode.side_effect = ["chunk one text", "chunk two text"]
+
+        result = chunk("Just over 1024 tokens.", tokenizer)
+
+        assert result == ["chunk one text", "chunk two text"]
+        assert tokenizer.decode.call_count == 2
+        tokenizer.decode.assert_any_call(list(range(1024)), skip_special_tokens=True)
+        tokenizer.decode.assert_any_call([1024], skip_special_tokens=True)
 
     def test_empty_text_returns_empty(self) -> None:
         tokenizer = MagicMock()
@@ -123,7 +154,11 @@ class TestSummarize:
         generate_kwargs = model.generate.call_args[1]
         assert generate_kwargs["max_length"] == 130
         assert generate_kwargs["min_length"] == 30
+        assert generate_kwargs["num_beams"] == 4
+        assert generate_kwargs["do_sample"] is False
         assert generate_kwargs["length_penalty"] == 1.0
+        assert generate_kwargs["early_stopping"] is True
+        assert generate_kwargs["no_repeat_ngram_size"] == 3
 
     def test_multi_chunk_concatenates(self) -> None:
         input_ids_1 = torch.tensor([[1, 2, 3]])
@@ -161,7 +196,11 @@ class TestSummarize:
         generate_kwargs = model.generate.call_args[1]
         assert generate_kwargs["max_length"] == 130
         assert generate_kwargs["min_length"] == 30
+        assert generate_kwargs["num_beams"] == 4
+        assert generate_kwargs["do_sample"] is False
         assert generate_kwargs["length_penalty"] == 1.0
+        assert generate_kwargs["early_stopping"] is True
+        assert generate_kwargs["no_repeat_ngram_size"] == 3
 
     def test_empty_chunks(self) -> None:
         model = MagicMock()
