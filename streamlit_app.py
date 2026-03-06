@@ -53,13 +53,26 @@ def chunk(text: str, tokenizer: PreTrainedTokenizerBase) -> list[str]:
     ]
 
 
+DEFAULT_GENERATION_PARAMS: dict[str, int | float | bool] = {
+    "max_length": 130,
+    "min_length": 30,
+    "num_beams": 4,
+    "do_sample": False,
+    "length_penalty": 1.0,
+    "early_stopping": True,
+    "no_repeat_ngram_size": 3,
+}
+
+
 def summarize(
     chunks: list[str],
     model: PreTrainedModel,
     tokenizer: PreTrainedTokenizerBase,
     device: str,
+    generation_params: dict[str, int | float | bool] | None = None,
 ) -> tuple[str, int, int]:
     """Summarize text chunks and return (response, prompt_eval_count, eval_count)."""
+    params = generation_params or DEFAULT_GENERATION_PARAMS
     summaries: list[str] = []
     total_prompt_tokens = 0
     total_output_tokens = 0
@@ -75,13 +88,7 @@ def summarize(
 
             output_ids = model.generate(  # type: ignore[operator]
                 **encoded,
-                max_length=130,
-                min_length=30,
-                num_beams=4,
-                do_sample=False,
-                length_penalty=1.0,
-                early_stopping=True,
-                no_repeat_ngram_size=3,
+                **params,
             )
 
             summaries.append(tokenizer.decode(output_ids[0], skip_special_tokens=True))

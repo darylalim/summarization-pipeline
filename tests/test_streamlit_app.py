@@ -202,6 +202,43 @@ class TestSummarize:
         assert generate_kwargs["early_stopping"] is True
         assert generate_kwargs["no_repeat_ngram_size"] == 3
 
+    def test_custom_generation_params(self) -> None:
+        input_ids = torch.tensor([[1, 2, 3]])
+        output_ids = torch.tensor([[10, 11]])
+
+        encoded = _make_encoded(input_ids)
+
+        tokenizer = MagicMock()
+        tokenizer.return_value = encoded
+        tokenizer.decode.return_value = "Custom summary."
+
+        model = MagicMock()
+        model.generate.return_value = output_ids
+
+        generation_params = {
+            "max_length": 200,
+            "min_length": 50,
+            "num_beams": 2,
+            "do_sample": True,
+            "length_penalty": 0.5,
+            "early_stopping": False,
+            "no_repeat_ngram_size": 4,
+        }
+
+        response, prompt_eval_count, eval_count = summarize(
+            ["Some text."], model, tokenizer, "cpu", generation_params
+        )
+
+        assert response == "Custom summary."
+        generate_kwargs = model.generate.call_args[1]
+        assert generate_kwargs["max_length"] == 200
+        assert generate_kwargs["min_length"] == 50
+        assert generate_kwargs["num_beams"] == 2
+        assert generate_kwargs["do_sample"] is True
+        assert generate_kwargs["length_penalty"] == 0.5
+        assert generate_kwargs["early_stopping"] is False
+        assert generate_kwargs["no_repeat_ngram_size"] == 4
+
     def test_empty_chunks(self) -> None:
         model = MagicMock()
         tokenizer = MagicMock()
