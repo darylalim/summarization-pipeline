@@ -1,10 +1,11 @@
 [project]
 name = "summarization-pipeline"
 version = "0.1.0"
-description = "Streamlit web app for PDF document conversion and text summarization"
+description = "Streamlit web app for summarizing news articles using bart-large-cnn"
 requires-python = ">=3.12"
 dependencies = [
-    "docling",
+    "lxml_html_clean",
+    "newspaper4k",
     "streamlit",
     "torch",
     "transformers",
