@@ -101,6 +101,53 @@ def summarize(
 st.title("News Article Summarizer")
 st.write("Summarize news articles with facebook/bart-large-cnn.")
 
+with st.sidebar:
+    st.header("Generation Settings")
+    with st.expander("Generation Settings", expanded=False):
+        max_length = st.slider(
+            "max_length", 10, 512, DEFAULT_GENERATION_PARAMS["max_length"]
+        )
+        min_length = st.slider(
+            "min_length", 1, 128, DEFAULT_GENERATION_PARAMS["min_length"]
+        )
+        num_beams = st.slider(
+            "num_beams", 1, 10, DEFAULT_GENERATION_PARAMS["num_beams"]
+        )
+        do_sample = st.checkbox(
+            "do_sample", value=DEFAULT_GENERATION_PARAMS["do_sample"]
+        )
+        length_penalty = st.slider(
+            "length_penalty",
+            0.0,
+            2.0,
+            float(DEFAULT_GENERATION_PARAMS["length_penalty"]),
+            step=0.1,
+        )
+        early_stopping = st.checkbox(
+            "early_stopping", value=DEFAULT_GENERATION_PARAMS["early_stopping"]
+        )
+        no_repeat_ngram_size = st.slider(
+            "no_repeat_ngram_size",
+            0,
+            5,
+            DEFAULT_GENERATION_PARAMS["no_repeat_ngram_size"],
+        )
+
+        if st.button("Reset to Defaults"):
+            for key, value in DEFAULT_GENERATION_PARAMS.items():
+                st.session_state[key] = value
+            st.rerun()
+
+generation_params: dict[str, int | float | bool] = {
+    "max_length": max_length,
+    "min_length": min_length,
+    "num_beams": num_beams,
+    "do_sample": do_sample,
+    "length_penalty": length_penalty,
+    "early_stopping": early_stopping,
+    "no_repeat_ngram_size": no_repeat_ngram_size,
+}
+
 url = st.text_input("Article URL", placeholder="https://example.com/article")
 device = get_device()
 model, tokenizer = load_model(device)
