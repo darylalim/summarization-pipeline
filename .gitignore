@@ -2,6 +2,7 @@
 .ipynb_checkpoints
 .pytest_cache
 .ruff_cache
-.worktrees
 .venv
+.worktrees
 __pycache__
+nltk_data/

@@ -26,8 +26,8 @@ uv run streamlit run streamlit_app.py
 ## Dependencies
 
 - `newspaper4k` — article extraction from URLs
-- `lxml_html_clean` — required by newspaper4k for HTML cleaning
-- `nltk` — NLP features for newspaper4k
+- `lxml_html_clean` — HTML cleaning (required by newspaper4k)
+- `nltk` — NLP features (required by newspaper4k)
 - `transformers` — Hugging Face model loading and generation
 - `torch` — tensor operations
 - `streamlit` — web UI

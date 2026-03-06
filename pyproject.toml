@@ -14,9 +14,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "ty",
     "pytest",
     "ruff",
+    "ty",
 ]
 
 [tool.ruff.lint.isort]
