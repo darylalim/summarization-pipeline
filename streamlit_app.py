@@ -72,11 +72,11 @@ def summarize(
 
             output_ids = model.generate(  # type: ignore[operator]
                 **encoded,
-                max_length=142,
-                min_length=56,
+                max_length=130,
+                min_length=30,
                 num_beams=4,
                 do_sample=False,
-                length_penalty=2.0,
+                length_penalty=1.0,
                 early_stopping=True,
                 no_repeat_ngram_size=3,
             )

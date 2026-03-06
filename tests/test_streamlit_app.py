@@ -122,6 +122,10 @@ class TestSummarize:
         decode_args, decode_kwargs = tokenizer.decode.call_args
         assert torch.equal(decode_args[0], output_ids[0])
         assert decode_kwargs == {"skip_special_tokens": True}
+        generate_kwargs = model.generate.call_args[1]
+        assert generate_kwargs["max_length"] == 130
+        assert generate_kwargs["min_length"] == 30
+        assert generate_kwargs["length_penalty"] == 1.0
 
     def test_multi_chunk_concatenates(self) -> None:
         input_ids_1 = torch.tensor([[1, 2, 3]])
@@ -156,6 +160,10 @@ class TestSummarize:
                 {"return_tensors": "pt", "truncation": True, "max_length": 1024},
             ),
         ]
+        generate_kwargs = model.generate.call_args[1]
+        assert generate_kwargs["max_length"] == 130
+        assert generate_kwargs["min_length"] == 30
+        assert generate_kwargs["length_penalty"] == 1.0
 
     def test_empty_chunks(self) -> None:
         model = MagicMock()
