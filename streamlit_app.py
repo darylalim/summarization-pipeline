@@ -1,4 +1,3 @@
-import json
 import time
 
 import streamlit as st
@@ -12,6 +11,9 @@ from transformers import (
 )
 
 MODEL_NAME = "facebook/bart-large-cnn"
+
+if "collection" not in st.session_state:
+    st.session_state.collection: list[dict] = []
 
 
 def get_device() -> str:
@@ -102,7 +104,6 @@ st.title("News Article Summarizer")
 st.write("Summarize news articles with facebook/bart-large-cnn.")
 
 with st.sidebar:
-    st.header("Generation Settings")
     with st.expander("Generation Settings", expanded=False):
         max_length = st.slider(
             "max_length", 10, 512, DEFAULT_GENERATION_PARAMS["max_length"]
@@ -175,27 +176,15 @@ if st.button("Summarize", type="primary", disabled=not url):
         with st.spinner("Summarizing..."):
             start = time.perf_counter()
             response, prompt_eval_count, eval_count = summarize(
-                chunks, model, tokenizer, device
+                chunks, model, tokenizer, device, generation_params
             )
             total_duration = time.perf_counter() - start
 
-        st.success("Done.")
-
-        st.subheader("Article")
-        st.write(f"**{article.title}**")
-        if article.authors:
-            st.write(f"By {', '.join(article.authors)}")
-        if article.publish_date:
-            st.write(f"Published: {article.publish_date.strftime('%Y-%m-%d')}")
-
-        st.subheader("Summary")
-        st.write(response)
-
-        st.subheader("Metrics")
-        st.metric("Model", MODEL_NAME)
-        st.metric("Total Duration (seconds)", f"{total_duration:.4f}")
-        st.metric("Prompt Eval Count", prompt_eval_count)
-        st.metric("Eval Count", eval_count)
+        original_word_count = len(article.text.split())
+        summary_word_count = len(response.split())
+        compression_ratio = (
+            summary_word_count / original_word_count if original_word_count > 0 else 0.0
+        )
 
         summary_data = {
             "model": MODEL_NAME,
@@ -205,19 +194,21 @@ if st.button("Summarize", type="primary", disabled=not url):
             "publish_date": (
                 article.publish_date.isoformat() if article.publish_date else None
             ),
+            "keywords": article.keywords,
+            "original_text": article.text,
             "response": response,
             "total_duration": total_duration,
             "chunk_count": len(chunks),
             "prompt_eval_count": prompt_eval_count,
             "eval_count": eval_count,
+            "original_word_count": original_word_count,
+            "summary_word_count": summary_word_count,
+            "compression_ratio": compression_ratio,
+            "generation_params": generation_params,
         }
 
-        st.download_button(
-            label="Download JSON",
-            data=json.dumps(summary_data, indent=2),
-            file_name="summary.json",
-            mime="application/json",
-        )
+        st.session_state.collection.append(summary_data)
+        st.success("Article summarized and added to collection.")
 
     except Exception as e:
         st.exception(e)
