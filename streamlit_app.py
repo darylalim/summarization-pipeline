@@ -1,3 +1,6 @@
+import json
+import time
+
 import streamlit as st
 import torch
 from newspaper import Article
@@ -88,8 +91,69 @@ def summarize(
     return " ".join(summaries), total_prompt_tokens, total_output_tokens
 
 
-st.title("Summarization Pipeline")
-st.write("Summarize documents with facebook/bart-large-cnn.")
+st.title("News Article Summarizer")
+st.write("Summarize news articles with facebook/bart-large-cnn.")
 
+url = st.text_input("Article URL", placeholder="https://example.com/article")
 device = get_device()
 model, tokenizer = load_model(device)
+
+if st.button("Summarize", type="primary", disabled=not url):
+    try:
+        with st.spinner("Extracting article..."):
+            article = extract(url)
+
+        if not article.text:
+            st.warning("No text content could be extracted from the article.")
+            st.stop()
+
+        with st.spinner("Summarizing..."):
+            chunks = chunk(article.text, tokenizer)
+            start = time.perf_counter()
+            response, prompt_eval_count, eval_count = summarize(
+                chunks, model, tokenizer, device
+            )
+            total_duration = time.perf_counter() - start
+
+        st.success("Done.")
+
+        st.subheader("Article")
+        st.markdown(f"**{article.title}**")
+        if article.authors:
+            st.write(f"By {', '.join(article.authors)}")
+        if article.publish_date:
+            st.write(f"Published: {article.publish_date.strftime('%Y-%m-%d')}")
+
+        st.subheader("Summary")
+        st.write(response)
+
+        st.subheader("Metrics")
+        st.metric("Model", MODEL_NAME)
+        st.metric("Total Duration (seconds)", f"{total_duration:.4f}")
+        st.metric("Prompt Eval Count", prompt_eval_count)
+        st.metric("Eval Count", eval_count)
+
+        summary_data = {
+            "model": MODEL_NAME,
+            "url": url,
+            "title": article.title,
+            "authors": article.authors,
+            "publish_date": (
+                article.publish_date.isoformat() if article.publish_date else None
+            ),
+            "response": response,
+            "total_duration": total_duration,
+            "chunk_count": len(chunks),
+            "prompt_eval_count": prompt_eval_count,
+            "eval_count": eval_count,
+        }
+
+        st.download_button(
+            label="Download JSON",
+            data=json.dumps(summary_data, indent=2),
+            file_name="summary.json",
+            mime="application/json",
+        )
+
+    except Exception as e:
+        st.exception(e)
