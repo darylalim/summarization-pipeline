@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "lxml_html_clean",
     "newspaper4k",
+    "nltk",
     "streamlit",
     "torch",
     "transformers",

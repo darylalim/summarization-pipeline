@@ -1,9 +1,8 @@
 from unittest.mock import MagicMock, patch
 
-import pytest
 import torch
 
-from streamlit_app import chunk, extract, get_device, summarize
+from streamlit_app import extract, get_device, summarize
 
 
 def _make_encoded(input_ids: torch.Tensor) -> MagicMock:
