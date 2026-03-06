@@ -1,6 +1,6 @@
-# Summarization Pipeline
+# News Article Summarizer
 
-Streamlit web app for converting PDF documents using [Docling](https://docling-project.github.io/docling/) and summarizing text using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook. Long documents are chunked with Docling's `HybridChunker` before summarization.
+Streamlit web app for summarizing news articles using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook. Articles are extracted from URLs using [newspaper4k](https://github.com/AndyTheFactory/newspaper4k). Long articles are split into token-aware chunks before summarization.
 
 ## Setup
 
@@ -11,9 +11,9 @@ uv run streamlit run streamlit_app.py
 
 ## Usage
 
-1. Upload a PDF file
+1. Paste a news article URL
 2. Click **Summarize**
-3. View the generated summary and metrics
+3. View article metadata, generated summary, and metrics
 4. Download results as JSON
 
 ## Development

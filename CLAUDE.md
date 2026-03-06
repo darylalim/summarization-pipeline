@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Streamlit web app for converting PDF documents using [Docling](https://docling-project.github.io/docling/) and summarizing text using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook. Long documents are chunked with Docling's `HybridChunker` before summarization.
+Streamlit web app for summarizing news articles using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook. Articles are extracted from URLs using [newspaper4k](https://github.com/AndyTheFactory/newspaper4k). Long articles are split into token-aware chunks before summarization.
 
 ## Setup
 
@@ -25,7 +25,9 @@ uv run streamlit run streamlit_app.py
 
 ## Dependencies
 
-- `docling` — PDF conversion and chunking (`HybridChunker`)
+- `newspaper4k` — article extraction from URLs
+- `lxml_html_clean` — required by newspaper4k for HTML cleaning
+- `nltk` — NLP features for newspaper4k
 - `transformers` — Hugging Face model loading and generation
 - `torch` — tensor operations
 - `streamlit` — web UI
@@ -49,13 +51,12 @@ model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-large-cnn")
 
 ### Performance
 
-- `@st.cache_resource` caches the model and `DocumentConverter`
-- Docling models pre-downloaded to `~/.cache/docling/models/`
+- `@st.cache_resource` caches the model
 - Device priority: MPS > CUDA > CPU
 - `model.eval()` disables dropout; `torch.inference_mode()` disables autograd
-- `HybridChunker` with `HuggingFaceTokenizer(max_tokens=1024)` splits documents into token-aware chunks
+- Token-based chunking splits articles exceeding 1024 tokens
 - Tokenizer truncation: `max_length=1024` (bart-large-cnn max position embeddings)
-- Generation: `max_length=142, min_length=56, num_beams=4, do_sample=False, length_penalty=2.0, early_stopping=True, no_repeat_ngram_size=3`
+- Generation: `max_length=130, min_length=30, num_beams=4, do_sample=False, length_penalty=1.0, early_stopping=True, no_repeat_ngram_size=3`
 - Timing: `time.perf_counter()` (fractional seconds)
 
 ### Error Handling
@@ -67,16 +68,18 @@ Unexpected exceptions shown with `st.exception()`.
 Fields in the downloadable JSON via `st.download_button`:
 
 - `model` — model name
+- `url` — article URL
+- `title` — article title
+- `authors` — article authors
+- `publish_date` — article publish date (ISO format)
 - `response` — generated summary text
 - `total_duration` — generation time in seconds
-- `chunk_count` — number of document chunks
+- `chunk_count` — number of text chunks
 - `prompt_eval_count` — total input tokens across all chunks
 - `eval_count` — total output tokens across all chunks
 
-`st.metric` displays all fields except `response`.
+`st.metric` displays `model`, `total_duration`, `prompt_eval_count`, and `eval_count`.
 
 ## Tests
 
-- `tests/test_streamlit_app.py` — unit tests for `get_device`, `convert`, `chunk`, `summarize` (mocked, no model download)
-- `tests/data/pdf/test_solar_system.pdf` — single-page PDF
-- `tests/data/pdf/test_ai_history.pdf` — two-page PDF
+- `tests/test_streamlit_app.py` — unit tests for `get_device`, `extract`, `chunk`, `summarize` (mocked, no model download)
