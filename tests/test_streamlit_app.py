@@ -74,9 +74,7 @@ class TestChunk:
 
         assert result == ["chunk one text", "chunk two text"]
         assert tokenizer.decode.call_count == 2
-        tokenizer.decode.assert_any_call(
-            list(range(1024)), skip_special_tokens=True
-        )
+        tokenizer.decode.assert_any_call(list(range(1024)), skip_special_tokens=True)
         tokenizer.decode.assert_any_call(
             list(range(1024, 2048)), skip_special_tokens=True
         )
