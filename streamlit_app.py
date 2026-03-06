@@ -99,6 +99,10 @@ device = get_device()
 model, tokenizer = load_model(device)
 
 if st.button("Summarize", type="primary", disabled=not url):
+    if not url.startswith(("http://", "https://")):
+        st.warning("Please enter a valid URL starting with http:// or https://.")
+        st.stop()
+
     try:
         with st.spinner("Extracting article..."):
             article = extract(url)
@@ -107,8 +111,14 @@ if st.button("Summarize", type="primary", disabled=not url):
             st.warning("No text content could be extracted from the article.")
             st.stop()
 
-        with st.spinner("Summarizing..."):
+        with st.spinner("Chunking article..."):
             chunks = chunk(article.text, tokenizer)
+
+        if not chunks:
+            st.warning("No text content could be extracted from the article.")
+            st.stop()
+
+        with st.spinner("Summarizing..."):
             start = time.perf_counter()
             response, prompt_eval_count, eval_count = summarize(
                 chunks, model, tokenizer, device
@@ -118,7 +128,7 @@ if st.button("Summarize", type="primary", disabled=not url):
         st.success("Done.")
 
         st.subheader("Article")
-        st.markdown(f"**{article.title}**")
+        st.write(f"**{article.title}**")
         if article.authors:
             st.write(f"By {', '.join(article.authors)}")
         if article.publish_date:

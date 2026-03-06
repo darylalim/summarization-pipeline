@@ -26,12 +26,12 @@ class TestGetDevice:
 
     @patch("streamlit_app.torch.cuda.is_available", return_value=True)
     @patch("streamlit_app.torch.backends.mps.is_available", return_value=False)
-    def test_cuda(self, _mock_mps: MagicMock, _mock_cuda: MagicMock) -> None:
+    def test_cuda(self, _mock_cuda: MagicMock, _mock_mps: MagicMock) -> None:
         assert get_device() == "cuda"
 
     @patch("streamlit_app.torch.cuda.is_available", return_value=False)
     @patch("streamlit_app.torch.backends.mps.is_available", return_value=False)
-    def test_cpu(self, _mock_mps: MagicMock, _mock_cuda: MagicMock) -> None:
+    def test_cpu(self, _mock_cuda: MagicMock, _mock_mps: MagicMock) -> None:
         assert get_device() == "cpu"
 
 
