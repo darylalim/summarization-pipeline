@@ -212,3 +212,59 @@ if st.button("Summarize", type="primary", disabled=not url):
 
     except Exception as e:
         st.exception(e)
+
+if not st.session_state.collection:
+    st.info("No articles summarized yet.")
+else:
+    for i, item in enumerate(st.session_state.collection):
+        st.divider()
+        st.subheader(item["title"])
+
+        meta_parts = []
+        if item["authors"]:
+            meta_parts.append(f"By {', '.join(item['authors'])}")
+        if item["publish_date"]:
+            meta_parts.append(f"Published: {item['publish_date']}")
+        if item["keywords"]:
+            meta_parts.append(f"Keywords: {', '.join(item['keywords'])}")
+        if meta_parts:
+            st.write(" | ".join(meta_parts))
+
+        st.write(f"[{item['url']}]({item['url']})")
+
+        col_original, col_summary = st.columns(2)
+        with col_original:
+            st.markdown("**Original Text**")
+            st.text_area(
+                "Original",
+                value=item["original_text"],
+                height=300,
+                disabled=True,
+                key=f"original_{i}",
+                label_visibility="collapsed",
+            )
+        with col_summary:
+            st.markdown("**Summary**")
+            st.text_area(
+                "Summary",
+                value=item["response"],
+                height=300,
+                disabled=True,
+                key=f"summary_{i}",
+                label_visibility="collapsed",
+            )
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Duration (s)", f"{item['total_duration']:.4f}")
+        m2.metric("Original Words", item["original_word_count"])
+        m3.metric("Summary Words", item["summary_word_count"])
+        m4.metric("Compression Ratio", f"{item['compression_ratio']:.2%}")
+
+        m5, m6, m7, m8 = st.columns(4)
+        m5.metric("Model", item["model"])
+        m6.metric("Chunks", item["chunk_count"])
+        m7.metric("Prompt Tokens", item["prompt_eval_count"])
+        m8.metric("Output Tokens", item["eval_count"])
+
+        with st.expander("Generation Parameters"):
+            st.json(item["generation_params"])
