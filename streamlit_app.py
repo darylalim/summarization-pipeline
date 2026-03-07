@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import time
+import uuid
 from typing import Any
 
 import streamlit as st
@@ -91,7 +92,7 @@ def collection_to_csv(collection: list[dict[str, Any]]) -> str:
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     for item in collection:
-        flat = {k: v for k, v in item.items() if k != "generation_params"}
+        flat = {k: v for k, v in item.items() if k not in ("_id", "generation_params")}
         flat["authors"] = ";".join(flat["authors"])
         flat["keywords"] = ";".join(flat["keywords"])
         flat.update(item["generation_params"])
@@ -270,6 +271,7 @@ if st.button("Summarize", type="primary", disabled=not url):
         )
 
         summary_data = {
+            "_id": str(uuid.uuid4()),
             "model": MODEL_NAME,
             "url": url,
             "title": article.title,
@@ -300,6 +302,7 @@ if not st.session_state.collection:
     st.info("No articles summarized yet.")
 else:
     for i, item in enumerate(st.session_state.collection):
+        uid = item["_id"]
         st.divider()
         st.subheader(item["title"])
 
@@ -323,7 +326,7 @@ else:
                 value=item["original_text"],
                 height=300,
                 disabled=True,
-                key=f"original_{i}",
+                key=f"original_{uid}",
                 label_visibility="collapsed",
             )
         with col_summary:
@@ -333,7 +336,7 @@ else:
                 value=item["response"],
                 height=300,
                 disabled=True,
-                key=f"summary_{i}",
+                key=f"summary_{uid}",
                 label_visibility="collapsed",
             )
 
@@ -354,18 +357,18 @@ else:
 
         btn_cols = st.columns([1, 1, 1, 7])
         with btn_cols[0]:
-            if i > 0 and st.button("Up", key=f"up_{i}"):
+            if i > 0 and st.button("Up", key=f"up_{uid}"):
                 collection = st.session_state.collection
                 collection[i - 1], collection[i] = collection[i], collection[i - 1]
                 st.rerun()
         with btn_cols[1]:
             if i < len(st.session_state.collection) - 1 and st.button(
-                "Down", key=f"down_{i}"
+                "Down", key=f"down_{uid}"
             ):
                 collection = st.session_state.collection
                 collection[i], collection[i + 1] = collection[i + 1], collection[i]
                 st.rerun()
         with btn_cols[2]:
-            if st.button("Remove", key=f"remove_{i}"):
+            if st.button("Remove", key=f"remove_{uid}"):
                 st.session_state.collection.pop(i)
                 st.rerun()
