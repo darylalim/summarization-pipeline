@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Streamlit web app for summarizing news articles using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook. Articles are extracted from URLs using [newspaper4k](https://github.com/AndyTheFactory/newspaper4k). Long articles are split into token-aware chunks before summarization. Summaries are accumulated into a session collection that can be reordered, removed, and exported as JSON or CSV.
+Streamlit web app for summarizing news articles using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook. Articles are extracted from URLs using [newspaper4k](https://github.com/AndyTheFactory/newspaper4k). Long articles are split into token-aware chunks before summarization. Summaries accumulate into a session collection that can be reordered, removed, and exported as JSON or CSV.
 
 ## Setup
 
@@ -21,7 +21,6 @@ uv run streamlit run streamlit_app.py
 - snake_case for functions/variables, PascalCase for classes
 - Type annotations on all parameters and returns
 - isort with combine-as-imports (configured in `pyproject.toml`)
-- Use dataclasses and abstract base classes
 
 ## Dependencies
 
@@ -40,28 +39,16 @@ uv run streamlit run streamlit_app.py
 
 `streamlit_app.py` — single-file app
 
-### Imports
-
-```python
-import csv, io, json, time
-import streamlit as st
-import torch
-from newspaper import Article
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
-```
-
 ### Model
 
 ```python
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-
 tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-cnn")
 model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-large-cnn")
 ```
 
 ### Constants
 
-`DEFAULT_GENERATION_PARAMS` — dict with default generation settings used as sidebar defaults and fallback when no custom params are provided:
+`DEFAULT_GENERATION_PARAMS` — default generation settings used as sidebar defaults and fallback when no custom params are provided:
 
 ```python
 DEFAULT_GENERATION_PARAMS: dict[str, int | float | bool] = {
@@ -77,32 +64,31 @@ DEFAULT_GENERATION_PARAMS: dict[str, int | float | bool] = {
 
 ### Session State
 
-`st.session_state.collection` — a `list[dict]` that accumulates summary results across the session. Each dict contains article metadata, summary text, metrics, and generation parameters. Initialized to `[]` on first load.
+`st.session_state.collection` — `list[dict]` accumulating summary results across the session. Each dict contains article metadata, summary text, metrics, and generation parameters. Initialized to `[]` on first load.
 
 ### Layout
 
-- **Sidebar**: Contains a "Generation Settings" expander with sliders/checkboxes for all generation parameters (with a "Reset to Defaults" button), and an "Export" section with JSON and CSV download buttons.
-- **Main area**: URL input, Summarize button, and collection cards for each summarized article.
+- **Sidebar** — "Generation Settings" expander (sliders/checkboxes for all generation parameters, "Reset to Defaults" button) and "Export" section (JSON and CSV download buttons)
+- **Main area** — URL input, Summarize button, and collection cards
 
 ### Functions
 
 - `get_device() -> str` — detects best device (MPS > CUDA > CPU)
+- `load_model(device) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]` — loads model and tokenizer, cached with `@st.cache_resource`
 - `extract(url) -> Article` — downloads, parses, and runs NLP on a news article
 - `chunk(text, tokenizer) -> list[str]` — splits text into token-aware chunks of up to 1024 tokens
-- `summarize(chunks, model, tokenizer, device, generation_params) -> (response, prompt_eval_count, eval_count)` — summarizes text chunks with configurable generation parameters
-- `collection_to_csv(collection) -> str` — converts the summary collection to a CSV string, flattening `authors` and `keywords` with semicolons and inlining `generation_params` as individual columns
+- `collection_to_csv(collection) -> str` — converts collection to CSV, joining `authors`/`keywords` with semicolons and flattening `generation_params` to individual columns
+- `summarize(chunks, model, tokenizer, device, generation_params) -> tuple[str, int, int]` — summarizes text chunks with configurable generation parameters, returns (response, prompt_eval_count, eval_count)
 
 ### Collection Cards
 
-Each summarized article is displayed as a card with:
+Each summarized article displays:
 
 - Title, metadata (authors, publish date, keywords), and URL
-- Side-by-side two-column display of original text and summary (read-only text areas)
-- Two rows of `st.metric` widgets:
-  - Row 1: Duration (s), Original Words, Summary Words, Compression Ratio
-  - Row 2: Model, Chunks, Prompt Tokens, Output Tokens
-- Expandable "Generation Parameters" section showing the params used
-- Reorder buttons (Up/Down) and Remove button for collection management
+- Side-by-side original text and summary (read-only text areas)
+- Metrics: Duration (s), Original Words, Summary Words, Compression Ratio, Model, Chunks, Prompt Tokens, Output Tokens
+- Expandable "Generation Parameters" showing params used
+- Reorder (Up/Down) and Remove buttons
 
 ### Performance
 
@@ -111,7 +97,7 @@ Each summarized article is displayed as a card with:
 - `model.eval()` disables dropout; `torch.inference_mode()` disables autograd
 - Token-based chunking splits articles exceeding 1024 tokens
 - Tokenizer truncation: `max_length=1024` (bart-large-cnn max position embeddings)
-- Generation parameters are configurable via sidebar; defaults defined in `DEFAULT_GENERATION_PARAMS`
+- Generation parameters configurable via sidebar; defaults in `DEFAULT_GENERATION_PARAMS`
 - Timing: `time.perf_counter()` (fractional seconds)
 
 ### Error Handling
@@ -120,7 +106,7 @@ Unexpected exceptions shown with `st.exception()`.
 
 ### JSON/CSV Export
 
-The sidebar provides export of the full session collection as JSON or CSV via `st.download_button` (disabled when collection is empty).
+Sidebar export of the full session collection via `st.download_button` (disabled when empty).
 
 Fields in each collection item:
 
@@ -139,8 +125,15 @@ Fields in each collection item:
 - `original_word_count` — word count of original article
 - `summary_word_count` — word count of generated summary
 - `compression_ratio` — summary_word_count / original_word_count
-- `generation_params` — dict of generation parameters used (JSON export nests this; CSV export flattens to individual columns: `max_length`, `min_length`, `num_beams`, `do_sample`, `length_penalty`, `early_stopping`, `no_repeat_ngram_size`)
+- `generation_params` — generation parameters used (nested in JSON; flattened to columns in CSV)
 
 ## Tests
 
-- `tests/test_streamlit_app.py` — unit tests for `get_device`, `extract`, `chunk`, `summarize`, and `collection_to_csv` (mocked, no model download)
+`tests/test_streamlit_app.py` — unit tests (mocked, no model download):
+
+- `TestDefaultGenerationParams` — verifies constant keys and values
+- `TestGetDevice` — MPS, CUDA, CPU detection
+- `TestExtract` — article download/parse, error propagation
+- `TestChunk` — short text, long text, boundaries, empty input
+- `TestSummarize` — single/multi-chunk, custom generation params, empty input
+- `TestCollectionToCsv` — single/multi-item, flattened params, empty authors/keywords, empty collection
