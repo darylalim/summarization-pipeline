@@ -5,7 +5,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 
-from streamlit_app import chunk, collection_to_csv, extract, get_device, summarize
+from streamlit_app import (
+    DEFAULT_GENERATION_PARAMS,
+    chunk,
+    collection_to_csv,
+    extract,
+    get_device,
+    summarize,
+)
 
 
 def _make_encoded(input_ids: torch.Tensor) -> MagicMock:
@@ -19,6 +26,29 @@ def _make_encoded(input_ids: torch.Tensor) -> MagicMock:
     encoded.__iter__ = lambda self: iter(["input_ids", "attention_mask"])
     encoded.to.return_value = encoded
     return encoded
+
+
+class TestDefaultGenerationParams:
+    def test_has_expected_keys(self) -> None:
+        expected_keys = {
+            "max_length",
+            "min_length",
+            "num_beams",
+            "do_sample",
+            "length_penalty",
+            "early_stopping",
+            "no_repeat_ngram_size",
+        }
+        assert set(DEFAULT_GENERATION_PARAMS.keys()) == expected_keys
+
+    def test_has_expected_values(self) -> None:
+        assert DEFAULT_GENERATION_PARAMS["max_length"] == 130
+        assert DEFAULT_GENERATION_PARAMS["min_length"] == 30
+        assert DEFAULT_GENERATION_PARAMS["num_beams"] == 4
+        assert DEFAULT_GENERATION_PARAMS["do_sample"] is False
+        assert DEFAULT_GENERATION_PARAMS["length_penalty"] == 1.0
+        assert DEFAULT_GENERATION_PARAMS["early_stopping"] is True
+        assert DEFAULT_GENERATION_PARAMS["no_repeat_ngram_size"] == 3
 
 
 class TestGetDevice:
@@ -154,13 +184,8 @@ class TestSummarize:
         assert torch.equal(decode_args[0], output_ids[0])
         assert decode_kwargs == {"skip_special_tokens": True}
         generate_kwargs = model.generate.call_args[1]
-        assert generate_kwargs["max_length"] == 130
-        assert generate_kwargs["min_length"] == 30
-        assert generate_kwargs["num_beams"] == 4
-        assert generate_kwargs["do_sample"] is False
-        assert generate_kwargs["length_penalty"] == 1.0
-        assert generate_kwargs["early_stopping"] is True
-        assert generate_kwargs["no_repeat_ngram_size"] == 3
+        for key, value in DEFAULT_GENERATION_PARAMS.items():
+            assert generate_kwargs[key] == value
 
     def test_multi_chunk_concatenates(self) -> None:
         input_ids_1 = torch.tensor([[1, 2, 3]])
@@ -196,13 +221,8 @@ class TestSummarize:
             ),
         ]
         generate_kwargs = model.generate.call_args[1]
-        assert generate_kwargs["max_length"] == 130
-        assert generate_kwargs["min_length"] == 30
-        assert generate_kwargs["num_beams"] == 4
-        assert generate_kwargs["do_sample"] is False
-        assert generate_kwargs["length_penalty"] == 1.0
-        assert generate_kwargs["early_stopping"] is True
-        assert generate_kwargs["no_repeat_ngram_size"] == 3
+        for key, value in DEFAULT_GENERATION_PARAMS.items():
+            assert generate_kwargs[key] == value
 
     def test_custom_generation_params(self) -> None:
         input_ids = torch.tensor([[1, 2, 3]])
@@ -254,36 +274,34 @@ class TestSummarize:
         model.generate.assert_not_called()
 
 
+def _make_collection_item(
+    **overrides: object,
+) -> dict[str, object]:
+    defaults: dict[str, object] = {
+        "model": "facebook/bart-large-cnn",
+        "url": "https://example.com",
+        "title": "Test Article",
+        "authors": ["Alice", "Bob"],
+        "publish_date": "2026-01-15",
+        "keywords": ["news", "test"],
+        "original_text": "Original text here.",
+        "response": "Summary text here.",
+        "total_duration": 1.5,
+        "chunk_count": 1,
+        "prompt_eval_count": 100,
+        "eval_count": 30,
+        "original_word_count": 3,
+        "summary_word_count": 3,
+        "compression_ratio": 1.0,
+        "generation_params": dict(DEFAULT_GENERATION_PARAMS),
+    }
+    defaults.update(overrides)
+    return defaults
+
+
 class TestCollectionToCsv:
     def test_single_item(self) -> None:
-        collection = [
-            {
-                "model": "facebook/bart-large-cnn",
-                "url": "https://example.com",
-                "title": "Test Article",
-                "authors": ["Alice", "Bob"],
-                "publish_date": "2026-01-15",
-                "keywords": ["news", "test"],
-                "original_text": "Original text here.",
-                "response": "Summary text here.",
-                "total_duration": 1.5,
-                "chunk_count": 1,
-                "prompt_eval_count": 100,
-                "eval_count": 30,
-                "original_word_count": 3,
-                "summary_word_count": 3,
-                "compression_ratio": 1.0,
-                "generation_params": {
-                    "max_length": 130,
-                    "min_length": 30,
-                    "num_beams": 4,
-                    "do_sample": False,
-                    "length_penalty": 1.0,
-                    "early_stopping": True,
-                    "no_repeat_ngram_size": 3,
-                },
-            }
-        ]
+        collection = [_make_collection_item()]
 
         result = collection_to_csv(collection)
         reader = csv.DictReader(io.StringIO(result))
@@ -294,6 +312,71 @@ class TestCollectionToCsv:
         assert rows[0]["authors"] == "Alice;Bob"
         assert rows[0]["keywords"] == "news;test"
         assert rows[0]["url"] == "https://example.com"
+
+    def test_flattened_generation_params(self) -> None:
+        collection = [_make_collection_item()]
+
+        result = collection_to_csv(collection)
+        reader = csv.DictReader(io.StringIO(result))
+        rows = list(reader)
+
+        assert rows[0]["max_length"] == "130"
+        assert rows[0]["min_length"] == "30"
+        assert rows[0]["num_beams"] == "4"
+        assert rows[0]["do_sample"] == "False"
+        assert rows[0]["length_penalty"] == "1.0"
+        assert rows[0]["early_stopping"] == "True"
+        assert rows[0]["no_repeat_ngram_size"] == "3"
+        assert "generation_params" not in rows[0]
+
+    def test_multi_item(self) -> None:
+        collection = [
+            _make_collection_item(title="First Article"),
+            _make_collection_item(title="Second Article", url="https://example.com/2"),
+        ]
+
+        result = collection_to_csv(collection)
+        reader = csv.DictReader(io.StringIO(result))
+        rows = list(reader)
+
+        assert len(rows) == 2
+        assert rows[0]["title"] == "First Article"
+        assert rows[1]["title"] == "Second Article"
+        assert rows[1]["url"] == "https://example.com/2"
+
+    def test_empty_authors_and_keywords(self) -> None:
+        collection = [_make_collection_item(authors=[], keywords=[])]
+
+        result = collection_to_csv(collection)
+        reader = csv.DictReader(io.StringIO(result))
+        rows = list(reader)
+
+        assert rows[0]["authors"] == ""
+        assert rows[0]["keywords"] == ""
+
+    def test_special_characters(self) -> None:
+        collection = [
+            _make_collection_item(
+                original_text='He said, "hello"\nNew line here.',
+                response="Commas, quotes, and\nnewlines.",
+            )
+        ]
+
+        result = collection_to_csv(collection)
+        reader = csv.DictReader(io.StringIO(result))
+        rows = list(reader)
+
+        assert rows[0]["original_text"] == 'He said, "hello"\nNew line here.'
+        assert rows[0]["response"] == "Commas, quotes, and\nnewlines."
+
+    def test_excludes_id_field(self) -> None:
+        collection = [_make_collection_item(_id="test-uuid-123")]
+
+        result = collection_to_csv(collection)
+        reader = csv.DictReader(io.StringIO(result))
+        rows = list(reader)
+
+        assert "_id" not in rows[0]
 
     def test_empty_collection(self) -> None:
         result = collection_to_csv([])
