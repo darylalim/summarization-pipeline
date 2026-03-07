@@ -152,16 +152,30 @@ st.write("Summarize news articles with facebook/bart-large-cnn.")
 with st.sidebar:
     with st.expander("Generation Settings", expanded=False):
         max_length = st.slider(
-            "max_length", 10, 512, DEFAULT_GENERATION_PARAMS["max_length"]
+            "max_length",
+            10,
+            512,
+            DEFAULT_GENERATION_PARAMS["max_length"],
+            key="max_length",
         )
         min_length = st.slider(
-            "min_length", 1, 128, DEFAULT_GENERATION_PARAMS["min_length"]
+            "min_length",
+            1,
+            128,
+            DEFAULT_GENERATION_PARAMS["min_length"],
+            key="min_length",
         )
         num_beams = st.slider(
-            "num_beams", 1, 10, DEFAULT_GENERATION_PARAMS["num_beams"]
+            "num_beams",
+            1,
+            10,
+            DEFAULT_GENERATION_PARAMS["num_beams"],
+            key="num_beams",
         )
         do_sample = st.checkbox(
-            "do_sample", value=DEFAULT_GENERATION_PARAMS["do_sample"]
+            "do_sample",
+            value=DEFAULT_GENERATION_PARAMS["do_sample"],
+            key="do_sample",
         )
         length_penalty = st.slider(
             "length_penalty",
@@ -169,15 +183,19 @@ with st.sidebar:
             2.0,
             float(DEFAULT_GENERATION_PARAMS["length_penalty"]),
             step=0.1,
+            key="length_penalty",
         )
         early_stopping = st.checkbox(
-            "early_stopping", value=DEFAULT_GENERATION_PARAMS["early_stopping"]
+            "early_stopping",
+            value=DEFAULT_GENERATION_PARAMS["early_stopping"],
+            key="early_stopping",
         )
         no_repeat_ngram_size = st.slider(
             "no_repeat_ngram_size",
             0,
             5,
             DEFAULT_GENERATION_PARAMS["no_repeat_ngram_size"],
+            key="no_repeat_ngram_size",
         )
 
         if st.button("Reset to Defaults"):
