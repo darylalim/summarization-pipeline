@@ -268,3 +268,21 @@ else:
 
         with st.expander("Generation Parameters"):
             st.json(item["generation_params"])
+
+        btn_cols = st.columns([1, 1, 1, 7])
+        with btn_cols[0]:
+            if i > 0 and st.button("Up", key=f"up_{i}"):
+                collection = st.session_state.collection
+                collection[i - 1], collection[i] = collection[i], collection[i - 1]
+                st.rerun()
+        with btn_cols[1]:
+            if i < len(st.session_state.collection) - 1 and st.button(
+                "Down", key=f"down_{i}"
+            ):
+                collection = st.session_state.collection
+                collection[i], collection[i + 1] = collection[i + 1], collection[i]
+                st.rerun()
+        with btn_cols[2]:
+            if st.button("Remove", key=f"remove_{i}"):
+                st.session_state.collection.pop(i)
+                st.rerun()
