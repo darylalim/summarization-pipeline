@@ -1,9 +1,11 @@
+import csv
+import io
 from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
 
-from streamlit_app import chunk, extract, get_device, summarize
+from streamlit_app import chunk, collection_to_csv, extract, get_device, summarize
 
 
 def _make_encoded(input_ids: torch.Tensor) -> MagicMock:
@@ -250,3 +252,49 @@ class TestSummarize:
         assert eval_count == 0
         tokenizer.assert_not_called()
         model.generate.assert_not_called()
+
+
+class TestCollectionToCsv:
+    def test_single_item(self) -> None:
+        collection = [
+            {
+                "model": "facebook/bart-large-cnn",
+                "url": "https://example.com",
+                "title": "Test Article",
+                "authors": ["Alice", "Bob"],
+                "publish_date": "2026-01-15",
+                "keywords": ["news", "test"],
+                "original_text": "Original text here.",
+                "response": "Summary text here.",
+                "total_duration": 1.5,
+                "chunk_count": 1,
+                "prompt_eval_count": 100,
+                "eval_count": 30,
+                "original_word_count": 3,
+                "summary_word_count": 3,
+                "compression_ratio": 1.0,
+                "generation_params": {
+                    "max_length": 130,
+                    "min_length": 30,
+                    "num_beams": 4,
+                    "do_sample": False,
+                    "length_penalty": 1.0,
+                    "early_stopping": True,
+                    "no_repeat_ngram_size": 3,
+                },
+            }
+        ]
+
+        result = collection_to_csv(collection)
+        reader = csv.DictReader(io.StringIO(result))
+        rows = list(reader)
+
+        assert len(rows) == 1
+        assert rows[0]["title"] == "Test Article"
+        assert rows[0]["authors"] == "Alice;Bob"
+        assert rows[0]["keywords"] == "news;test"
+        assert rows[0]["url"] == "https://example.com"
+
+    def test_empty_collection(self) -> None:
+        result = collection_to_csv([])
+        assert result == ""

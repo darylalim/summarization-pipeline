@@ -1,3 +1,6 @@
+import csv
+import io
+import json
 import time
 
 import streamlit as st
@@ -53,6 +56,46 @@ def chunk(text: str, tokenizer: PreTrainedTokenizerBase) -> list[str]:
         tokenizer.decode(token_ids[i : i + 1024], skip_special_tokens=True)
         for i in range(0, len(token_ids), 1024)
     ]
+
+
+def collection_to_csv(collection: list[dict[str, object]]) -> str:
+    """Convert the summary collection to a CSV string."""
+    if not collection:
+        return ""
+    fieldnames = [
+        "model",
+        "url",
+        "title",
+        "authors",
+        "publish_date",
+        "keywords",
+        "original_text",
+        "response",
+        "total_duration",
+        "chunk_count",
+        "prompt_eval_count",
+        "eval_count",
+        "original_word_count",
+        "summary_word_count",
+        "compression_ratio",
+        "max_length",
+        "min_length",
+        "num_beams",
+        "do_sample",
+        "length_penalty",
+        "early_stopping",
+        "no_repeat_ngram_size",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+    for item in collection:
+        flat = {k: v for k, v in item.items() if k != "generation_params"}
+        flat["authors"] = ";".join(flat["authors"])
+        flat["keywords"] = ";".join(flat["keywords"])
+        flat.update(item["generation_params"])
+        writer.writerow(flat)
+    return output.getvalue()
 
 
 DEFAULT_GENERATION_PARAMS: dict[str, int | float | bool] = {
@@ -138,6 +181,25 @@ with st.sidebar:
             for key, value in DEFAULT_GENERATION_PARAMS.items():
                 st.session_state[key] = value
             st.rerun()
+
+    st.header("Export")
+    has_items = len(st.session_state.collection) > 0
+
+    st.download_button(
+        label="Export JSON",
+        data=json.dumps(st.session_state.collection, indent=2),
+        file_name="summaries.json",
+        mime="application/json",
+        disabled=not has_items,
+    )
+
+    st.download_button(
+        label="Export CSV",
+        data=collection_to_csv(st.session_state.collection),
+        file_name="summaries.csv",
+        mime="text/csv",
+        disabled=not has_items,
+    )
 
 generation_params: dict[str, int | float | bool] = {
     "max_length": max_length,
