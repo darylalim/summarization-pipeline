@@ -118,7 +118,9 @@ def summarize(
     generation_params: dict[str, int | float | bool] | None = None,
 ) -> tuple[str, int, int]:
     """Summarize text chunks and return (response, prompt_eval_count, eval_count)."""
-    params = generation_params or DEFAULT_GENERATION_PARAMS
+    params = (
+        DEFAULT_GENERATION_PARAMS if generation_params is None else generation_params
+    )
     summaries: list[str] = []
     total_prompt_tokens = 0
     total_output_tokens = 0
