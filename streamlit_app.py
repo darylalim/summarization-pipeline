@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import time
+from typing import Any
 
 import streamlit as st
 import torch
@@ -58,7 +59,7 @@ def chunk(text: str, tokenizer: PreTrainedTokenizerBase) -> list[str]:
     ]
 
 
-def collection_to_csv(collection: list[dict[str, object]]) -> str:
+def collection_to_csv(collection: list[dict[str, Any]]) -> str:
     """Convert the summary collection to a CSV string."""
     if not collection:
         return ""
