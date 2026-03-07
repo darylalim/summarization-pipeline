@@ -203,24 +203,24 @@ with st.sidebar:
                 st.session_state[key] = value
             st.rerun()
 
-    st.header("Export")
-    has_items = len(st.session_state.collection) > 0
+    with st.expander("Export", expanded=True):
+        has_items = len(st.session_state.collection) > 0
 
-    st.download_button(
-        label="Export JSON",
-        data=json.dumps(st.session_state.collection, indent=2),
-        file_name="summaries.json",
-        mime="application/json",
-        disabled=not has_items,
-    )
+        st.download_button(
+            label="Export JSON",
+            data=json.dumps(st.session_state.collection, indent=2),
+            file_name="summaries.json",
+            mime="application/json",
+            disabled=not has_items,
+        )
 
-    st.download_button(
-        label="Export CSV",
-        data=collection_to_csv(st.session_state.collection),
-        file_name="summaries.csv",
-        mime="text/csv",
-        disabled=not has_items,
-    )
+        st.download_button(
+            label="Export CSV",
+            data=collection_to_csv(st.session_state.collection),
+            file_name="summaries.csv",
+            mime="text/csv",
+            disabled=not has_items,
+        )
 
 generation_params: dict[str, int | float | bool] = {
     "max_length": max_length,
