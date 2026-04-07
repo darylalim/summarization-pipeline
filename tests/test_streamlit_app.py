@@ -3,30 +3,16 @@ import io
 from unittest.mock import MagicMock, patch
 
 import pytest
-import torch
 
 from streamlit_app import (
     DEFAULT_GENERATION_PARAMS,
     MAX_CHUNK_TOKENS,
+    SUMMARIZE_PROMPT,
     chunk,
     collection_to_csv,
     extract,
-    get_device,
     summarize,
 )
-
-
-def _make_encoded(input_ids: torch.Tensor) -> MagicMock:
-    attention_mask = torch.ones_like(input_ids)
-    encoded = MagicMock()
-    encoded.__getitem__ = lambda self, key: {
-        "input_ids": input_ids,
-        "attention_mask": attention_mask,
-    }[key]
-    encoded.keys.return_value = ["input_ids", "attention_mask"]
-    encoded.__iter__ = lambda self: iter(["input_ids", "attention_mask"])
-    encoded.to.return_value = encoded
-    return encoded
 
 
 class TestDefaultGenerationParams:
@@ -44,22 +30,6 @@ class TestDefaultGenerationParams:
         assert DEFAULT_GENERATION_PARAMS["temp"] == 0.0
         assert DEFAULT_GENERATION_PARAMS["top_p"] == 1.0
         assert DEFAULT_GENERATION_PARAMS["repetition_penalty"] == 1.2
-
-
-class TestGetDevice:
-    @patch("streamlit_app.torch.backends.mps.is_available", return_value=True)
-    def test_mps(self, _mock_mps: MagicMock) -> None:
-        assert get_device() == "mps"
-
-    @patch("streamlit_app.torch.cuda.is_available", return_value=True)
-    @patch("streamlit_app.torch.backends.mps.is_available", return_value=False)
-    def test_cuda(self, _mock_cuda: MagicMock, _mock_mps: MagicMock) -> None:
-        assert get_device() == "cuda"
-
-    @patch("streamlit_app.torch.cuda.is_available", return_value=False)
-    @patch("streamlit_app.torch.backends.mps.is_available", return_value=False)
-    def test_cpu(self, _mock_cuda: MagicMock, _mock_mps: MagicMock) -> None:
-        assert get_device() == "cpu"
 
 
 class TestExtract:
@@ -152,126 +122,105 @@ class TestChunk:
 
 
 class TestSummarize:
-    def test_returns_response_and_counts(self) -> None:
-        input_ids = torch.tensor([[1, 2, 3, 4, 5]])
-        output_ids = torch.tensor([[1, 2, 3]])
-
-        encoded = _make_encoded(input_ids)
-
+    @patch("streamlit_app.generate")
+    def test_returns_response_and_counts(self, mock_generate: MagicMock) -> None:
         tokenizer = MagicMock()
-        tokenizer.return_value = encoded
-        tokenizer.decode.return_value = "A short summary."
-
+        tokenizer.apply_chat_template.return_value = "formatted prompt"
+        tokenizer.encode.side_effect = [
+            [1, 2, 3, 4, 5],  # prompt tokens
+            [1, 2, 3],  # output tokens
+        ]
+        mock_generate.return_value = "A short summary."
         model = MagicMock()
-        model.generate.return_value = output_ids
 
         response, prompt_eval_count, eval_count = summarize(
-            ["Some long document text."], model, tokenizer, "cpu"
+            ["Some long document text."], model, tokenizer
         )
 
         assert response == "A short summary."
         assert prompt_eval_count == 5
         assert eval_count == 3
-        tokenizer.assert_called_once_with(
-            "Some long document text.",
-            return_tensors="pt",
-            truncation=True,
-            max_length=1024,
+        tokenizer.apply_chat_template.assert_called_once_with(
+            [
+                {
+                    "role": "user",
+                    "content": f"{SUMMARIZE_PROMPT}Some long document text.",
+                }
+            ],
+            tokenize=False,
+            add_generation_prompt=True,
         )
-        encoded.to.assert_called_once_with("cpu")
-        tokenizer.decode.assert_called_once()
-        decode_args, decode_kwargs = tokenizer.decode.call_args
-        assert torch.equal(decode_args[0], output_ids[0])
-        assert decode_kwargs == {"skip_special_tokens": True}
-        generate_kwargs = model.generate.call_args[1]
-        for key, value in DEFAULT_GENERATION_PARAMS.items():
-            assert generate_kwargs[key] == value
+        mock_generate.assert_called_once_with(
+            model,
+            tokenizer,
+            prompt="formatted prompt",
+            **DEFAULT_GENERATION_PARAMS,
+        )
 
-    def test_multi_chunk_concatenates(self) -> None:
-        input_ids_1 = torch.tensor([[1, 2, 3]])
-        input_ids_2 = torch.tensor([[4, 5]])
-        output_ids_1 = torch.tensor([[10, 11]])
-        output_ids_2 = torch.tensor([[12, 13, 14]])
-
-        encoded_1 = _make_encoded(input_ids_1)
-        encoded_2 = _make_encoded(input_ids_2)
-
+    @patch("streamlit_app.generate")
+    def test_multi_chunk_concatenates(self, mock_generate: MagicMock) -> None:
         tokenizer = MagicMock()
-        tokenizer.side_effect = [encoded_1, encoded_2]
-        tokenizer.decode.side_effect = ["Summary one.", "Summary two."]
-
+        tokenizer.apply_chat_template.side_effect = ["prompt one", "prompt two"]
+        tokenizer.encode.side_effect = [
+            [1, 2, 3],  # prompt 1 tokens
+            [1, 2],  # output 1 tokens
+            [4, 5],  # prompt 2 tokens
+            [1, 2, 3],  # output 2 tokens
+        ]
+        mock_generate.side_effect = ["Summary one.", "Summary two."]
         model = MagicMock()
-        model.generate.side_effect = [output_ids_1, output_ids_2]
 
         response, prompt_eval_count, eval_count = summarize(
-            ["Chunk one text.", "Chunk two text."], model, tokenizer, "cpu"
+            ["Chunk one text.", "Chunk two text."], model, tokenizer
         )
 
         assert response == "Summary one. Summary two."
         assert prompt_eval_count == 5  # 3 + 2
         assert eval_count == 5  # 2 + 3
-        assert tokenizer.call_args_list == [
-            (
-                ("Chunk one text.",),
-                {"return_tensors": "pt", "truncation": True, "max_length": 1024},
-            ),
-            (
-                ("Chunk two text.",),
-                {"return_tensors": "pt", "truncation": True, "max_length": 1024},
-            ),
-        ]
-        generate_kwargs = model.generate.call_args[1]
-        for key, value in DEFAULT_GENERATION_PARAMS.items():
-            assert generate_kwargs[key] == value
+        assert mock_generate.call_count == 2
+        assert tokenizer.apply_chat_template.call_count == 2
 
-    def test_custom_generation_params(self) -> None:
-        input_ids = torch.tensor([[1, 2, 3]])
-        output_ids = torch.tensor([[10, 11]])
-
-        encoded = _make_encoded(input_ids)
-
+    @patch("streamlit_app.generate")
+    def test_custom_generation_params(self, mock_generate: MagicMock) -> None:
         tokenizer = MagicMock()
-        tokenizer.return_value = encoded
-        tokenizer.decode.return_value = "Custom summary."
-
+        tokenizer.apply_chat_template.return_value = "formatted prompt"
+        tokenizer.encode.side_effect = [
+            [1, 2, 3],  # prompt tokens
+            [1, 2],  # output tokens
+        ]
+        mock_generate.return_value = "Custom summary."
         model = MagicMock()
-        model.generate.return_value = output_ids
 
-        generation_params = {
-            "max_length": 200,
-            "min_length": 50,
-            "num_beams": 2,
-            "do_sample": True,
-            "length_penalty": 0.5,
-            "early_stopping": False,
-            "no_repeat_ngram_size": 4,
+        custom_params: dict[str, int | float] = {
+            "max_tokens": 512,
+            "temp": 0.7,
+            "top_p": 0.9,
+            "repetition_penalty": 1.5,
         }
 
         response, prompt_eval_count, eval_count = summarize(
-            ["Some text."], model, tokenizer, "cpu", generation_params
+            ["Some text."], model, tokenizer, custom_params
         )
 
         assert response == "Custom summary."
-        generate_kwargs = model.generate.call_args[1]
-        assert generate_kwargs["max_length"] == 200
-        assert generate_kwargs["min_length"] == 50
-        assert generate_kwargs["num_beams"] == 2
-        assert generate_kwargs["do_sample"] is True
-        assert generate_kwargs["length_penalty"] == 0.5
-        assert generate_kwargs["early_stopping"] is False
-        assert generate_kwargs["no_repeat_ngram_size"] == 4
+        call_kwargs = mock_generate.call_args[1]
+        assert call_kwargs["max_tokens"] == 512
+        assert call_kwargs["temp"] == 0.7
+        assert call_kwargs["top_p"] == 0.9
+        assert call_kwargs["repetition_penalty"] == 1.5
 
-    def test_empty_chunks(self) -> None:
+    @patch("streamlit_app.generate")
+    def test_empty_chunks(self, mock_generate: MagicMock) -> None:
         model = MagicMock()
         tokenizer = MagicMock()
 
-        response, prompt_eval_count, eval_count = summarize([], model, tokenizer, "cpu")
+        response, prompt_eval_count, eval_count = summarize([], model, tokenizer)
 
         assert response == ""
         assert prompt_eval_count == 0
         assert eval_count == 0
-        tokenizer.assert_not_called()
-        model.generate.assert_not_called()
+        tokenizer.apply_chat_template.assert_not_called()
+        mock_generate.assert_not_called()
 
 
 def _make_collection_item(

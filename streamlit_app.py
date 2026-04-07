@@ -5,36 +5,22 @@ import time
 import uuid
 from typing import Any
 
+import mlx.nn as nn
 import streamlit as st
-import torch
+from mlx_lm import generate, load
 from newspaper import Article
-from transformers import (
-    AutoModelForSeq2SeqLM,
-    AutoTokenizer,
-    PreTrainedModel,
-    PreTrainedTokenizerBase,
-)
+from transformers import PreTrainedTokenizerBase
 
-MODEL_NAME = "facebook/bart-large-cnn"
+MODEL_NAME = "mlx-community/granite-4.0-h-1b-bf16"
 
 if "collection" not in st.session_state:
     st.session_state.collection: list[dict] = []
 
 
-def get_device() -> str:
-    """Automatically detect the best available device: MPS > CUDA > CPU."""
-    if torch.backends.mps.is_available():
-        return "mps"
-    if torch.cuda.is_available():
-        return "cuda"
-    return "cpu"
-
-
 @st.cache_resource
-def load_model(device: str) -> tuple[PreTrainedModel, PreTrainedTokenizerBase]:
+def load_model() -> tuple[nn.Module, PreTrainedTokenizerBase]:
     """Load model and tokenizer at application startup."""
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME).to(device).eval()
+    model, tokenizer = load(MODEL_NAME)
     return model, tokenizer
 
 
@@ -107,13 +93,14 @@ DEFAULT_GENERATION_PARAMS: dict[str, int | float] = {
     "repetition_penalty": 1.2,
 }
 
+SUMMARIZE_PROMPT = "Summarize the following news article concisely:\n\n"
+
 
 def summarize(
     chunks: list[str],
-    model: PreTrainedModel,
+    model: nn.Module,
     tokenizer: PreTrainedTokenizerBase,
-    device: str,
-    generation_params: dict[str, int | float | bool] | None = None,
+    generation_params: dict[str, int | float] | None = None,
 ) -> tuple[str, int, int]:
     """Summarize text chunks and return (response, prompt_eval_count, eval_count)."""
     params = (
@@ -123,29 +110,24 @@ def summarize(
     total_prompt_tokens = 0
     total_output_tokens = 0
 
-    with torch.inference_mode():
-        for text in chunks:
-            encoded = tokenizer(
-                text,
-                return_tensors="pt",
-                truncation=True,
-                max_length=1024,
-            ).to(device)
+    for text in chunks:
+        messages = [{"role": "user", "content": f"{SUMMARIZE_PROMPT}{text}"}]
+        prompt = tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
 
-            output_ids = model.generate(  # type: ignore[operator]
-                **encoded,
-                **params,
-            )
+        total_prompt_tokens += len(tokenizer.encode(prompt, add_special_tokens=False))
 
-            summaries.append(tokenizer.decode(output_ids[0], skip_special_tokens=True))
-            total_prompt_tokens += int(encoded["input_ids"].shape[1])
-            total_output_tokens += int(output_ids.shape[1])
+        response = generate(model, tokenizer, prompt=prompt, **params)
+
+        total_output_tokens += len(tokenizer.encode(response, add_special_tokens=False))
+        summaries.append(response)
 
     return " ".join(summaries), total_prompt_tokens, total_output_tokens
 
 
 st.title("News Article Summarizer")
-st.write("Summarize news articles with facebook/bart-large-cnn.")
+st.write(f"Summarize news articles with {MODEL_NAME}.")
 
 with st.sidebar:
     with st.expander("Generation Settings", expanded=False):
@@ -213,8 +195,7 @@ generation_params: dict[str, int | float] = {
 }
 
 url = st.text_input("Article URL", placeholder="https://example.com/article")
-device = get_device()
-model, tokenizer = load_model(device)
+model, tokenizer = load_model()
 
 if st.button("Summarize", type="primary", disabled=not url):
     if not url.startswith(("http://", "https://")):
@@ -239,7 +220,7 @@ if st.button("Summarize", type="primary", disabled=not url):
         with st.spinner("Summarizing..."):
             start = time.perf_counter()
             response, prompt_eval_count, eval_count = summarize(
-                chunks, model, tokenizer, device, generation_params
+                chunks, model, tokenizer, generation_params
             )
             total_duration = time.perf_counter() - start
 
