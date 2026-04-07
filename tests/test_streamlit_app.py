@@ -7,6 +7,7 @@ import pytest
 from streamlit_app import (
     DEFAULT_GENERATION_PARAMS,
     MAX_CHUNK_TOKENS,
+    MODEL_NAME,
     SUMMARIZE_PROMPT,
     chunk,
     collection_to_csv,
@@ -227,7 +228,7 @@ def _make_collection_item(
     **overrides: object,
 ) -> dict[str, object]:
     defaults: dict[str, object] = {
-        "model": "facebook/bart-large-cnn",
+        "model": MODEL_NAME,
         "url": "https://example.com",
         "title": "Test Article",
         "authors": ["Alice", "Bob"],
