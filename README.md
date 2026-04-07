@@ -1,6 +1,8 @@
 # News Article Summarizer
 
-Streamlit web app for summarizing news articles using [bart-large-cnn](https://huggingface.co/facebook/bart-large-cnn) by Facebook. Articles are extracted from URLs using [newspaper4k](https://github.com/AndyTheFactory/newspaper4k). Long articles are split into token-aware chunks before summarization. Summaries accumulate into a session collection that can be reordered, removed, and exported as JSON or CSV.
+Streamlit web app for summarizing news articles using [granite-4.0-h-1b](https://huggingface.co/ibm-granite/granite-4.0-h-1b) by IBM via `mlx-lm`. Articles are extracted from URLs using [newspaper4k](https://github.com/AndyTheFactory/newspaper4k). Long articles are split into token-aware chunks before summarization. Summaries accumulate into a session collection that can be reordered, removed, and exported as JSON or CSV.
+
+Requires Apple Silicon (M-series Mac).
 
 ## Setup
 
@@ -8,6 +10,8 @@ Streamlit web app for summarizing news articles using [bart-large-cnn](https://h
 uv sync
 uv run streamlit run streamlit_app.py
 ```
+
+The model (~2.9 GB) downloads automatically on first run.
 
 ## Usage
 
@@ -23,7 +27,7 @@ uv run streamlit run streamlit_app.py
 
 - **Session collection** — summaries accumulate across the session
 - **Side-by-side display** — original article text and generated summary in two columns
-- **Generation controls** — sidebar expander with sliders/checkboxes for all generation parameters, with a reset-to-defaults button
+- **Generation controls** — sidebar sliders for max_tokens, temp, top_p, and repetition_penalty, with a reset-to-defaults button
 - **Article metadata** — title, authors, publish date, keywords, and source URL
 - **Word count metrics** — original word count, summary word count, and compression ratio
 - **Collection management** — reorder (Up/Down) and remove articles

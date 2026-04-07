@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Streamlit web app for summarizing news articles using [granite-4.0-h-1b](https://huggingface.co/ibm-granite/granite-4.0-h-1b) by IBM via mlx-lm. Articles are extracted from URLs using [newspaper4k](https://github.com/AndyTheFactory/newspaper4k). Long articles are split into token-aware chunks before summarization. Summaries accumulate into a session collection that can be reordered, removed, and exported as JSON or CSV.
+Streamlit web app for summarizing news articles using [granite-4.0-h-1b](https://huggingface.co/ibm-granite/granite-4.0-h-1b) by IBM via `mlx-lm`. Articles are extracted from URLs using [newspaper4k](https://github.com/AndyTheFactory/newspaper4k). Long articles are split into token-aware chunks before summarization. Summaries accumulate into a session collection that can be reordered, removed, and exported as JSON or CSV.
 
 ## Setup
 
