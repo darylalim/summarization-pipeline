@@ -7,6 +7,7 @@ import torch
 
 from streamlit_app import (
     DEFAULT_GENERATION_PARAMS,
+    MAX_CHUNK_TOKENS,
     chunk,
     collection_to_csv,
     extract,
@@ -31,24 +32,18 @@ def _make_encoded(input_ids: torch.Tensor) -> MagicMock:
 class TestDefaultGenerationParams:
     def test_has_expected_keys(self) -> None:
         expected_keys = {
-            "max_length",
-            "min_length",
-            "num_beams",
-            "do_sample",
-            "length_penalty",
-            "early_stopping",
-            "no_repeat_ngram_size",
+            "max_tokens",
+            "temp",
+            "top_p",
+            "repetition_penalty",
         }
         assert set(DEFAULT_GENERATION_PARAMS.keys()) == expected_keys
 
     def test_has_expected_values(self) -> None:
-        assert DEFAULT_GENERATION_PARAMS["max_length"] == 130
-        assert DEFAULT_GENERATION_PARAMS["min_length"] == 30
-        assert DEFAULT_GENERATION_PARAMS["num_beams"] == 4
-        assert DEFAULT_GENERATION_PARAMS["do_sample"] is False
-        assert DEFAULT_GENERATION_PARAMS["length_penalty"] == 1.0
-        assert DEFAULT_GENERATION_PARAMS["early_stopping"] is True
-        assert DEFAULT_GENERATION_PARAMS["no_repeat_ngram_size"] == 3
+        assert DEFAULT_GENERATION_PARAMS["max_tokens"] == 256
+        assert DEFAULT_GENERATION_PARAMS["temp"] == 0.0
+        assert DEFAULT_GENERATION_PARAMS["top_p"] == 1.0
+        assert DEFAULT_GENERATION_PARAMS["repetition_penalty"] == 1.2
 
 
 class TestGetDevice:
@@ -109,38 +104,43 @@ class TestChunk:
 
     def test_long_text_splits_into_chunks(self) -> None:
         tokenizer = MagicMock()
-        tokenizer.encode.return_value = list(range(2048))
+        tokenizer.encode.return_value = list(range(MAX_CHUNK_TOKENS * 2))
         tokenizer.decode.side_effect = ["chunk one text", "chunk two text"]
 
         result = chunk("Long article text.", tokenizer)
 
         assert result == ["chunk one text", "chunk two text"]
         assert tokenizer.decode.call_count == 2
-        tokenizer.decode.assert_any_call(list(range(1024)), skip_special_tokens=True)
         tokenizer.decode.assert_any_call(
-            list(range(1024, 2048)), skip_special_tokens=True
+            list(range(MAX_CHUNK_TOKENS)), skip_special_tokens=True
+        )
+        tokenizer.decode.assert_any_call(
+            list(range(MAX_CHUNK_TOKENS, MAX_CHUNK_TOKENS * 2)),
+            skip_special_tokens=True,
         )
 
-    def test_exact_1024_tokens_single_chunk(self) -> None:
+    def test_exact_max_tokens_single_chunk(self) -> None:
         tokenizer = MagicMock()
-        tokenizer.encode.return_value = list(range(1024))
+        tokenizer.encode.return_value = list(range(MAX_CHUNK_TOKENS))
 
-        result = chunk("Exactly 1024 tokens.", tokenizer)
+        result = chunk("Exactly max tokens.", tokenizer)
 
-        assert result == ["Exactly 1024 tokens."]
+        assert result == ["Exactly max tokens."]
         tokenizer.decode.assert_not_called()
 
-    def test_1025_tokens_splits_into_two_chunks(self) -> None:
+    def test_max_plus_one_tokens_splits(self) -> None:
         tokenizer = MagicMock()
-        tokenizer.encode.return_value = list(range(1025))
+        tokenizer.encode.return_value = list(range(MAX_CHUNK_TOKENS + 1))
         tokenizer.decode.side_effect = ["chunk one text", "chunk two text"]
 
-        result = chunk("Just over 1024 tokens.", tokenizer)
+        result = chunk("Just over max tokens.", tokenizer)
 
         assert result == ["chunk one text", "chunk two text"]
         assert tokenizer.decode.call_count == 2
-        tokenizer.decode.assert_any_call(list(range(1024)), skip_special_tokens=True)
-        tokenizer.decode.assert_any_call([1024], skip_special_tokens=True)
+        tokenizer.decode.assert_any_call(
+            list(range(MAX_CHUNK_TOKENS)), skip_special_tokens=True
+        )
+        tokenizer.decode.assert_any_call([MAX_CHUNK_TOKENS], skip_special_tokens=True)
 
     def test_empty_text_returns_empty(self) -> None:
         tokenizer = MagicMock()
@@ -320,13 +320,10 @@ class TestCollectionToCsv:
         reader = csv.DictReader(io.StringIO(result))
         rows = list(reader)
 
-        assert rows[0]["max_length"] == "130"
-        assert rows[0]["min_length"] == "30"
-        assert rows[0]["num_beams"] == "4"
-        assert rows[0]["do_sample"] == "False"
-        assert rows[0]["length_penalty"] == "1.0"
-        assert rows[0]["early_stopping"] == "True"
-        assert rows[0]["no_repeat_ngram_size"] == "3"
+        assert rows[0]["max_tokens"] == "256"
+        assert rows[0]["temp"] == "0.0"
+        assert rows[0]["top_p"] == "1.0"
+        assert rows[0]["repetition_penalty"] == "1.2"
         assert "generation_params" not in rows[0]
 
     def test_multi_item(self) -> None:

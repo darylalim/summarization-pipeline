@@ -47,16 +47,19 @@ def extract(url: str) -> Article:
     return article
 
 
+MAX_CHUNK_TOKENS = 8192
+
+
 def chunk(text: str, tokenizer: PreTrainedTokenizerBase) -> list[str]:
-    """Split text into token-aware chunks of up to 1024 tokens."""
+    """Split text into token-aware chunks of up to MAX_CHUNK_TOKENS tokens."""
     token_ids = tokenizer.encode(text, add_special_tokens=False)
     if not token_ids:
         return []
-    if len(token_ids) <= 1024:
+    if len(token_ids) <= MAX_CHUNK_TOKENS:
         return [text]
     return [
-        tokenizer.decode(token_ids[i : i + 1024], skip_special_tokens=True)
-        for i in range(0, len(token_ids), 1024)
+        tokenizer.decode(token_ids[i : i + MAX_CHUNK_TOKENS], skip_special_tokens=True)
+        for i in range(0, len(token_ids), MAX_CHUNK_TOKENS)
     ]
 
 
@@ -80,13 +83,10 @@ def collection_to_csv(collection: list[dict[str, Any]]) -> str:
         "original_word_count",
         "summary_word_count",
         "compression_ratio",
-        "max_length",
-        "min_length",
-        "num_beams",
-        "do_sample",
-        "length_penalty",
-        "early_stopping",
-        "no_repeat_ngram_size",
+        "max_tokens",
+        "temp",
+        "top_p",
+        "repetition_penalty",
     ]
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=fieldnames)
@@ -100,14 +100,11 @@ def collection_to_csv(collection: list[dict[str, Any]]) -> str:
     return output.getvalue()
 
 
-DEFAULT_GENERATION_PARAMS: dict[str, int | float | bool] = {
-    "max_length": 130,
-    "min_length": 30,
-    "num_beams": 4,
-    "do_sample": False,
-    "length_penalty": 1.0,
-    "early_stopping": True,
-    "no_repeat_ngram_size": 3,
+DEFAULT_GENERATION_PARAMS: dict[str, int | float] = {
+    "max_tokens": 256,
+    "temp": 0.0,
+    "top_p": 1.0,
+    "repetition_penalty": 1.2,
 }
 
 
@@ -152,51 +149,36 @@ st.write("Summarize news articles with facebook/bart-large-cnn.")
 
 with st.sidebar:
     with st.expander("Generation Settings", expanded=False):
-        max_length = st.slider(
-            "max_length",
-            10,
-            512,
-            DEFAULT_GENERATION_PARAMS["max_length"],
-            key="max_length",
+        max_tokens = st.slider(
+            "max_tokens",
+            64,
+            1024,
+            DEFAULT_GENERATION_PARAMS["max_tokens"],
+            key="max_tokens",
         )
-        min_length = st.slider(
-            "min_length",
-            1,
-            128,
-            DEFAULT_GENERATION_PARAMS["min_length"],
-            key="min_length",
-        )
-        num_beams = st.slider(
-            "num_beams",
-            1,
-            10,
-            DEFAULT_GENERATION_PARAMS["num_beams"],
-            key="num_beams",
-        )
-        do_sample = st.checkbox(
-            "do_sample",
-            value=DEFAULT_GENERATION_PARAMS["do_sample"],
-            key="do_sample",
-        )
-        length_penalty = st.slider(
-            "length_penalty",
+        temp = st.slider(
+            "temp",
             0.0,
             2.0,
-            float(DEFAULT_GENERATION_PARAMS["length_penalty"]),
+            float(DEFAULT_GENERATION_PARAMS["temp"]),
             step=0.1,
-            key="length_penalty",
+            key="temp",
         )
-        early_stopping = st.checkbox(
-            "early_stopping",
-            value=DEFAULT_GENERATION_PARAMS["early_stopping"],
-            key="early_stopping",
+        top_p = st.slider(
+            "top_p",
+            0.0,
+            1.0,
+            float(DEFAULT_GENERATION_PARAMS["top_p"]),
+            step=0.05,
+            key="top_p",
         )
-        no_repeat_ngram_size = st.slider(
-            "no_repeat_ngram_size",
-            0,
-            5,
-            DEFAULT_GENERATION_PARAMS["no_repeat_ngram_size"],
-            key="no_repeat_ngram_size",
+        repetition_penalty = st.slider(
+            "repetition_penalty",
+            1.0,
+            2.0,
+            float(DEFAULT_GENERATION_PARAMS["repetition_penalty"]),
+            step=0.1,
+            key="repetition_penalty",
         )
 
         if st.button("Reset to Defaults"):
@@ -223,14 +205,11 @@ with st.sidebar:
             disabled=not has_items,
         )
 
-generation_params: dict[str, int | float | bool] = {
-    "max_length": max_length,
-    "min_length": min_length,
-    "num_beams": num_beams,
-    "do_sample": do_sample,
-    "length_penalty": length_penalty,
-    "early_stopping": early_stopping,
-    "no_repeat_ngram_size": no_repeat_ngram_size,
+generation_params: dict[str, int | float] = {
+    "max_tokens": max_tokens,
+    "temp": temp,
+    "top_p": top_p,
+    "repetition_penalty": repetition_penalty,
 }
 
 url = st.text_input("Article URL", placeholder="https://example.com/article")
