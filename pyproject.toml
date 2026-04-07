@@ -1,15 +1,14 @@
 [project]
 name = "news-article-summarizer"
 version = "0.1.0"
-description = "Streamlit web app for summarizing news articles using bart-large-cnn"
+description = "Streamlit web app for summarizing news articles using granite-4.0-h-1b"
 requires-python = ">=3.12"
 dependencies = [
     "lxml_html_clean",
+    "mlx-lm",
     "newspaper4k",
     "nltk",
     "streamlit",
-    "torch",
-    "transformers",
 ]
 
 [dependency-groups]
