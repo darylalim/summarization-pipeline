@@ -8,6 +8,7 @@ from typing import Any
 import mlx.nn as nn
 import streamlit as st
 from mlx_lm import generate, load
+from mlx_lm.sample_utils import make_logits_processors, make_sampler
 from newspaper import Article
 from transformers import PreTrainedTokenizerBase
 
@@ -110,6 +111,11 @@ def summarize(
     total_prompt_tokens = 0
     total_output_tokens = 0
 
+    sampler = make_sampler(temp=float(params["temp"]), top_p=float(params["top_p"]))
+    logits_processors = make_logits_processors(
+        repetition_penalty=float(params["repetition_penalty"])
+    )
+
     for text in chunks:
         messages = [{"role": "user", "content": f"{SUMMARIZE_PROMPT}{text}"}]
         prompt = tokenizer.apply_chat_template(
@@ -118,7 +124,14 @@ def summarize(
 
         total_prompt_tokens += len(tokenizer.encode(prompt, add_special_tokens=False))
 
-        response = generate(model, tokenizer, prompt=prompt, **params)
+        response = generate(
+            model,
+            tokenizer,
+            prompt=prompt,
+            max_tokens=int(params["max_tokens"]),
+            sampler=sampler,
+            logits_processors=logits_processors,
+        )
 
         total_output_tokens += len(tokenizer.encode(response, add_special_tokens=False))
         summaries.append(response)

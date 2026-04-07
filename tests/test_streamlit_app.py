@@ -123,8 +123,15 @@ class TestChunk:
 
 
 class TestSummarize:
+    @patch("streamlit_app.make_logits_processors")
+    @patch("streamlit_app.make_sampler")
     @patch("streamlit_app.generate")
-    def test_returns_response_and_counts(self, mock_generate: MagicMock) -> None:
+    def test_returns_response_and_counts(
+        self,
+        mock_generate: MagicMock,
+        mock_make_sampler: MagicMock,
+        mock_make_logits_processors: MagicMock,
+    ) -> None:
         tokenizer = MagicMock()
         tokenizer.apply_chat_template.return_value = "formatted prompt"
         tokenizer.encode.side_effect = [
@@ -132,6 +139,10 @@ class TestSummarize:
             [1, 2, 3],  # output tokens
         ]
         mock_generate.return_value = "A short summary."
+        mock_sampler = MagicMock()
+        mock_make_sampler.return_value = mock_sampler
+        mock_processors = MagicMock()
+        mock_make_logits_processors.return_value = mock_processors
         model = MagicMock()
 
         response, prompt_eval_count, eval_count = summarize(
@@ -151,15 +162,26 @@ class TestSummarize:
             tokenize=False,
             add_generation_prompt=True,
         )
+        mock_make_sampler.assert_called_once_with(temp=0.0, top_p=1.0)
+        mock_make_logits_processors.assert_called_once_with(repetition_penalty=1.2)
         mock_generate.assert_called_once_with(
             model,
             tokenizer,
             prompt="formatted prompt",
-            **DEFAULT_GENERATION_PARAMS,
+            max_tokens=256,
+            sampler=mock_sampler,
+            logits_processors=mock_processors,
         )
 
+    @patch("streamlit_app.make_logits_processors")
+    @patch("streamlit_app.make_sampler")
     @patch("streamlit_app.generate")
-    def test_multi_chunk_concatenates(self, mock_generate: MagicMock) -> None:
+    def test_multi_chunk_concatenates(
+        self,
+        mock_generate: MagicMock,
+        mock_make_sampler: MagicMock,
+        mock_make_logits_processors: MagicMock,
+    ) -> None:
         tokenizer = MagicMock()
         tokenizer.apply_chat_template.side_effect = ["prompt one", "prompt two"]
         tokenizer.encode.side_effect = [
@@ -181,8 +203,15 @@ class TestSummarize:
         assert mock_generate.call_count == 2
         assert tokenizer.apply_chat_template.call_count == 2
 
+    @patch("streamlit_app.make_logits_processors")
+    @patch("streamlit_app.make_sampler")
     @patch("streamlit_app.generate")
-    def test_custom_generation_params(self, mock_generate: MagicMock) -> None:
+    def test_custom_generation_params(
+        self,
+        mock_generate: MagicMock,
+        mock_make_sampler: MagicMock,
+        mock_make_logits_processors: MagicMock,
+    ) -> None:
         tokenizer = MagicMock()
         tokenizer.apply_chat_template.return_value = "formatted prompt"
         tokenizer.encode.side_effect = [
@@ -204,11 +233,10 @@ class TestSummarize:
         )
 
         assert response == "Custom summary."
+        mock_make_sampler.assert_called_once_with(temp=0.7, top_p=0.9)
+        mock_make_logits_processors.assert_called_once_with(repetition_penalty=1.5)
         call_kwargs = mock_generate.call_args[1]
         assert call_kwargs["max_tokens"] == 512
-        assert call_kwargs["temp"] == 0.7
-        assert call_kwargs["top_p"] == 0.9
-        assert call_kwargs["repetition_penalty"] == 1.5
 
     @patch("streamlit_app.generate")
     def test_empty_chunks(self, mock_generate: MagicMock) -> None:
@@ -228,6 +256,7 @@ def _make_collection_item(
     **overrides: object,
 ) -> dict[str, object]:
     defaults: dict[str, object] = {
+        "_id": "test-uuid",
         "model": MODEL_NAME,
         "url": "https://example.com",
         "title": "Test Article",
